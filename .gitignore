@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# transient files written and cleaned up by the test scripts in tests/
+# (only survive on disk if a test fails partway through)
+tests/*.json

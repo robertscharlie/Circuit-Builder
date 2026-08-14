@@ -1,0 +1,46 @@
+{
+  "components": [
+    {
+      "id": "895b779d54f142329cd870446d54461c",
+      "type": "battery",
+      "x": -200,
+      "y": 0,
+      "rotation": 90,
+      "value": 9.0,
+      "label": "V1"
+    },
+    {
+      "id": "8dcedd3b141c45a391c511b0666541cb",
+      "type": "resistor",
+      "x": 200,
+      "y": 0,
+      "rotation": 90,
+      "value": 1000.0,
+      "label": "R1"
+    }
+  ],
+  "wires": [
+    {
+      "id": "fa04ece8a45e4c0ca72b4ea8976f2a23",
+      "start": {
+        "component_id": "895b779d54f142329cd870446d54461c",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "8dcedd3b141c45a391c511b0666541cb",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "20242232428f4bab8670c2baa119c61a",
+      "start": {
+        "component_id": "895b779d54f142329cd870446d54461c",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "8dcedd3b141c45a391c511b0666541cb",
+        "terminal_index": 1
+      }
+    }
+  ]
+}
