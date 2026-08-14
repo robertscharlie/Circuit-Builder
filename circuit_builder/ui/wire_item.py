@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from PySide6.QtCore import QLineF, Qt
+from PySide6.QtCore import QLineF, QPointF, Qt
 from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsLineItem
 
@@ -33,6 +33,30 @@ class WireItem(QGraphicsLineItem):
 
     def update_path(self) -> None:
         self.setLine(QLineF(self.start_terminal.scenePos(), self.end_terminal.scenePos()))
+
+    def closest_point(self, point) -> QPointF:
+        """The point on this wire's line SEGMENT (clamped to the segment,
+        not the infinite line) nearest to `point`."""
+        line = self.line()
+        ax, ay = line.x1(), line.y1()
+        bx, by = line.x2(), line.y2()
+        dx, dy = bx - ax, by - ay
+        length_sq = dx * dx + dy * dy
+        if length_sq < 1e-9:
+            t = 0.0
+        else:
+            t = max(0.0, min(1.0, ((point.x() - ax) * dx + (point.y() - ay) * dy) / length_sq))
+        return QPointF(ax + t * dx, ay + t * dy)
+
+    def distance_to(self, point) -> float:
+        """Perpendicular distance from `point` to this wire's line segment.
+        Used to detect a component landing "on" a wire for tap/auto-connect
+        - a plain scene.items(point) pixel hit test only catches perfectly
+        horizontal/vertical wires between grid points, since a diagonal
+        wire's mathematical line almost never passes exactly through
+        another grid point."""
+        nearest = self.closest_point(point)
+        return ((point.x() - nearest.x()) ** 2 + (point.y() - nearest.y()) ** 2) ** 0.5
 
     def attach(self) -> None:
         self.start_terminal.add_wire(self)

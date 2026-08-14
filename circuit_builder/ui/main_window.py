@@ -2,32 +2,46 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QSize, Qt
+from PySide6.QtCore import QPointF, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QUndoStack
 from PySide6.QtWidgets import QDockWidget, QFileDialog, QMainWindow, QMessageBox, QStatusBar, QToolBar
 
 from circuit_builder.core.circuit_model import Circuit, ComponentData, TerminalRef, WireData
 from circuit_builder.core.components import COMPONENT_TYPES
+from circuit_builder.core.simulation import TransientState, simulate
 from circuit_builder.ui.canvas import CircuitScene, CircuitView
 from circuit_builder.ui.commands import (
     AddComponentCommand,
     AddWireCommand,
+    ConnectTerminalToWireCommand,
     DeleteSelectionCommand,
     DetachTerminalCommand,
     EditComponentCommand,
     MergeNodeIntoTerminalCommand,
     MoveComponentsCommand,
     RotateComponentsCommand,
+    SpliceComponentIntoWireCommand,
     SplitWireCommand,
+    ToggleSwitchCommand,
 )
 from circuit_builder.ui.component_item import ComponentItem, GRID_SIZE, JUNCTION_TYPE
 from circuit_builder.ui.help_dialog import ControlsHelpDialog
 from circuit_builder.ui import icons
 from circuit_builder.ui.palette import ComponentPalette
+from circuit_builder.ui.simulation_overlay import VoltageLabelItem
 from circuit_builder.ui.terminal_item import TerminalItem, terminals_already_wired
 from circuit_builder.ui.wire_item import WireItem
 
 SCENE_EXTENT = 3000
+# How often a live simulation re-solves the circuit on its own, with no user
+# interaction - what makes a capacitor's charge/discharge visibly animate
+# instead of only updating on the next edit.
+SIM_TICK_MS = 150
+# Used for an "instant" refresh (e.g. right after an edit) instead of a real
+# tick - small enough that a capacitor's charge doesn't perceptibly move,
+# but a genuine (if tiny) time step rather than a hard voltage-source pin,
+# which would risk a singular/contradictory system - see simulation.py.
+INSTANT_DT = 1e-6
 
 
 class MainWindow(QMainWindow):
@@ -47,6 +61,7 @@ class MainWindow(QMainWindow):
         self.view.components_moved.connect(self._on_components_moved)
         self.view.wire_split_requested.connect(self._on_wire_split_requested)
         self.view.terminal_detach_requested.connect(self._on_terminal_detach_requested)
+        self.view.wire_tap_requested.connect(self._on_wire_tap_requested)
 
         palette_dock = QDockWidget("Components", self)
         palette_dock.setWidget(ComponentPalette(self))
@@ -55,25 +70,40 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar(self))
         self.statusBar().showMessage(
-            "Drag components or press R/B/C/I/N to place one (Resistor/Battery/Capacitor/Inductor/Node) - "
-            "while placing, press R to rotate it, click to drop. "
-            "Drag between terminal dots to wire them - Shift+drag a terminal to move its component instead. "
+            "Drag components or press R/B/C/I/L/S/N to place one (Resistor/Battery/Capacitor/Inductor/"
+            "Bulb/Switch/Node) - while placing, press R to rotate it, click to drop. Click a placed "
+            "switch to flip it open/closed. "
+            "Drag between terminal dots to wire them - drop on an existing wire's line to tap into it, or "
+            "Shift+drag a terminal to move its component instead. "
             "Right-click a wire, component, or a wired terminal for more options (split a wire, move a "
             "component by clicking its new spot instead of dragging, or detach a wired terminal onto its "
-            "own Node). Drop a terminal exactly onto another one to auto-wire them - if either side is a "
-            "Node, it merges away instead, rewiring its connections straight to the other terminal. "
+            "own Node). Ending a move with a terminal on another terminal auto-wires them, or on a wire's "
+            "line taps into it - if either side is a Node, it merges away instead, rewiring its connections "
+            "straight to the other terminal. "
             "Double-click to edit, Delete to remove, Ctrl+R to rotate a selection. "
-            "Scroll to zoom, middle-drag or the Pan Tool (H) to move around."
+            "Scroll to zoom, middle-drag or the Pan Tool (H) to move around. "
+            "Press Simulate (F5) to solve the circuit live and show the DC voltage at every terminal - "
+            "press it again (or Stop) to end the live simulation."
         )
 
         self._counters = {key: 0 for key in COMPONENT_TYPES}
         self._current_path: Path | None = None
+        self._simulation_labels: list[VoltageLabelItem] = []
+        self._simulation_active = False
+        self._transient_state: TransientState | None = None
+        self._sim_timer = QTimer(self)
+        self._sim_timer.setInterval(SIM_TICK_MS)
+        self._sim_timer.timeout.connect(self._on_sim_tick)
 
         self._build_toolbar()
         self._build_component_shortcuts()
         self._build_menu()
 
         self.undo_stack.cleanChanged.connect(lambda _clean: self._update_title())
+        # Every mutation in this app goes through the undo stack, so this one
+        # hook is enough to catch moves, wiring, value edits, switch toggles,
+        # etc. - and re-run a live simulation to reflect them.
+        self.undo_stack.indexChanged.connect(lambda _index: self._on_circuit_changed())
         self._update_title()
 
     def _build_toolbar(self) -> None:
@@ -126,6 +156,17 @@ class MainWindow(QMainWindow):
         self._zoom_out_action = zoom_out_action
         self._fit_action = fit_action
         self._reset_zoom_action = reset_zoom_action
+
+        toolbar.addSeparator()
+        simulate_action = QAction(icons.simulate_icon(), "Simulate", self)
+        simulate_action.setCheckable(True)
+        simulate_action.setShortcut("F5")
+        simulate_action.setToolTip(
+            "Simulate (F5) - solve the circuit and show the DC voltage at every terminal"
+        )
+        simulate_action.toggled.connect(self._on_simulate_toggled)
+        toolbar.addAction(simulate_action)
+        self._simulate_action = simulate_action
 
     def _build_component_shortcuts(self) -> None:
         """One QAction per component type: pressing its shortcut key drops the
@@ -200,6 +241,9 @@ class MainWindow(QMainWindow):
         for action in self._placement_actions:
             components_menu.addAction(action)
 
+        simulate_menu = self.menuBar().addMenu("&Simulate")
+        simulate_menu.addAction(self._simulate_action)
+
         help_menu = self.menuBar().addMenu("&Help")
         controls_action = QAction("Controls...", self)
         controls_action.setShortcut("F1")
@@ -208,6 +252,142 @@ class MainWindow(QMainWindow):
 
     def show_controls_help(self) -> None:
         ControlsHelpDialog(self).exec()
+
+    # --- simulation ---------------------------------------------------
+    #
+    # "Simulate" starts a live session, not a one-shot snapshot: a QTimer
+    # (_sim_timer) keeps re-solving on its own every SIM_TICK_MS, advancing
+    # a TransientState's capacitor charge one step (backward-Euler) each
+    # time - this is what makes an RC charge/discharge curve visibly
+    # animate with no user interaction at all. Any edit (move, wire, toggle
+    # a switch, undo/redo, ...) - all of which go through the undo stack -
+    # ALSO refreshes immediately via _on_circuit_changed(), but as an
+    # instantaneous snapshot at the capacitor's current charge rather than
+    # advancing the clock, so e.g. flipping a switch updates at once without
+    # skipping ahead in time. It only stops when the user explicitly clicks
+    # Stop, or the circuit itself goes away (New/Open).
+
+    def _on_simulate_toggled(self, checked: bool) -> None:
+        if checked:
+            self._simulate_action.setIcon(icons.stop_icon())
+            self._simulate_action.setText("Stop Simulation")
+            self._simulate_action.setToolTip("Stop Simulation (F5) - stop the live simulation")
+            self._transient_state = TransientState()  # every capacitor starts uncharged, t=0
+            if self._refresh_simulation(dt=INSTANT_DT):
+                self._sim_timer.start()
+            else:
+                self._simulate_action.setChecked(False)  # nothing to simulate - bail back out
+        else:
+            self._simulate_action.setIcon(icons.simulate_icon())
+            self._simulate_action.setText("Simulate")
+            self._simulate_action.setToolTip(
+                "Simulate (F5) - solve the circuit live and show the DC voltage at every terminal"
+            )
+            self._sim_timer.stop()
+            self._clear_simulation_visuals()
+            self._simulation_active = False
+            self._transient_state = None
+
+    def _on_sim_tick(self) -> None:
+        """Fires every SIM_TICK_MS while a simulation is running - advances
+        simulated time so a capacitor's charge keeps animating even with no
+        user interaction."""
+        try:
+            if not self._refresh_simulation(dt=SIM_TICK_MS / 1000.0):
+                # The circuit went empty out from under a running simulation
+                # (e.g. everything got deleted) - bail out the same way
+                # starting Simulate on an empty canvas does, instead of
+                # leaving the toolbar stuck on "Stop Simulation" while the
+                # timer quietly keeps polling an empty circuit.
+                self._simulate_action.setChecked(False)
+        except RuntimeError:
+            self._sim_timer.stop()  # window torn down mid-tick
+
+    def _on_circuit_changed(self) -> None:
+        """Hooked to undo_stack.indexChanged - every undoable edit runs
+        through here. Only acts while a simulation is actively running."""
+        if not self._simulation_active:
+            return
+        try:
+            if not self._refresh_simulation(dt=INSTANT_DT):
+                self._simulate_action.setChecked(False)
+        except RuntimeError:
+            return  # indexChanged fired while the window was being torn down
+
+    def _refresh_simulation(self, dt: float) -> bool:
+        """Re-solves the circuit - advancing any capacitor's charge by `dt`
+        of simulated time (pass INSTANT_DT for an effectively-instant
+        refresh after an edit, rather than a real tick) - and redraws the
+        voltage labels + bulb glow from scratch. Returns False (and leaves
+        nothing on screen) if there's nothing to simulate."""
+        circuit = self._build_circuit_model()
+        result = simulate(circuit, dt=dt, state=self._transient_state)
+        self._clear_simulation_visuals()
+
+        if result is None:
+            self.statusBar().showMessage("Nothing to simulate - add some components first.", 4000)
+            self._simulation_active = False
+            return False
+
+        # A bulb's glow is scaled against the largest battery voltage in the
+        # circuit, so it reads as "full brightness" at the supply voltage
+        # and dims smoothly below that (e.g. as a capacitor discharges
+        # through it) rather than snapping on/off.
+        battery_values = [abs(c.value) for c in circuit.components if c.type == "battery" and c.value]
+        brightness_reference = max(battery_values) if battery_values else 5.0
+
+        for item in self.scene.items():
+            if isinstance(item, ComponentItem):
+                if item.component_type == "lamp":
+                    v0 = result.voltage_at(item.id, 0)
+                    v1 = result.voltage_at(item.id, 1)
+                    drop = abs(v0 - v1) if v0 is not None and v1 is not None else 0.0
+                    item.brightness = max(0.0, min(1.0, drop / brightness_reference))
+                    item.update()
+                for terminal in item.terminals:
+                    voltage = result.voltage_at(item.id, terminal.index)
+                    label = VoltageLabelItem(voltage, terminal.scenePos())
+                    self.scene.addItem(label)
+                    self._simulation_labels.append(label)
+
+        self._simulation_active = True
+        if result.warnings:
+            self.statusBar().showMessage(" | ".join(result.warnings), 8000)
+        else:
+            self.statusBar().showMessage(
+                "Simulating live - voltage shown at every terminal, and any capacitor's charge evolves "
+                "in real time. Reference (0V) is the first battery's negative terminal. Click Stop (F5) "
+                "to end it.",
+                6000,
+            )
+        return True
+
+    def _clear_simulation_visuals(self) -> None:
+        """Removes the voltage labels and un-lights any bulbs, without
+        touching _simulation_active or the toolbar button - used both when
+        stopping outright and as the first step of every live refresh."""
+        for label in self._simulation_labels:
+            self.scene.removeItem(label)
+        self._simulation_labels.clear()
+        for item in self.scene.items():
+            if isinstance(item, ComponentItem) and item.component_type == "lamp" and item.brightness:
+                item.brightness = 0.0
+                item.update()
+
+    def _stop_simulation(self) -> None:
+        """Used by New/Open, which replace the circuit out from under any
+        running simulation - stops it via the same path a manual Stop click
+        would take, so the icon/tooltip/labels/timer all reset together."""
+        if self._simulate_action.isChecked():
+            self._simulate_action.setChecked(False)
+        else:
+            self._sim_timer.stop()
+            self._clear_simulation_visuals()
+            self._simulation_active = False
+            self._transient_state = None
+
+    def _on_switch_toggle_requested(self, component: ComponentItem) -> None:
+        self.undo_stack.push(ToggleSwitchCommand(component))
 
     # --- component / wire management ------------------------------------
 
@@ -218,6 +398,7 @@ class MainWindow(QMainWindow):
         label: str | None = None,
         value: float | None = None,
         component_id: str | None = None,
+        closed: bool | None = None,
     ) -> ComponentItem:
         """Builds and configures a component but does not add it to the
         scene - used by AddComponentCommand so redo()/undo() can toggle its
@@ -225,9 +406,10 @@ class MainWindow(QMainWindow):
         if label is None:
             self._counters[comp_type] += 1
             label = f"{COMPONENT_TYPES[comp_type].prefix}{self._counters[comp_type]}"
-        item = ComponentItem(comp_type, value=value, label=label, component_id=component_id)
+        item = ComponentItem(comp_type, value=value, label=label, component_id=component_id, closed=closed)
         item.setPos(scene_pos)
         item.edit_requested.connect(self._on_component_edit_requested)
+        item.toggle_requested.connect(self._on_switch_toggle_requested)
         return item
 
     def add_component(
@@ -237,22 +419,46 @@ class MainWindow(QMainWindow):
         label: str | None = None,
         value: float | None = None,
         component_id: str | None = None,
+        closed: bool | None = None,
     ) -> ComponentItem:
         """Creates a component and adds it straight to the scene, bypassing
         the undo stack. Used for loading a file, not for user-driven adds
         (those go through AddComponentCommand so they're undoable)."""
-        item = self._create_component(comp_type, scene_pos, label=label, value=value, component_id=component_id)
+        item = self._create_component(
+            comp_type, scene_pos, label=label, value=value, component_id=component_id, closed=closed
+        )
         self.scene.addItem(item)
         return item
 
     def _on_component_dropped(self, comp_type: str, scene_pos: QPointF, rotation: float = 0.0) -> None:
-        self.undo_stack.push(AddComponentCommand(self, comp_type, scene_pos, rotation))
+        # A freshly placed component (dragged from the palette, or dropped
+        # via a keyboard-shortcut placement) gets the same auto-connect/
+        # splice treatment as one that just finished being moved (see
+        # _auto_connect_or_merge) - landing it on a terminal or a wire
+        # should wire it in immediately, not only on a later drag.
+        self.undo_stack.beginMacro(f"Add {COMPONENT_TYPES[comp_type].display_name}")
+        command = AddComponentCommand(self, comp_type, scene_pos, rotation)
+        self.undo_stack.push(command)
+        self._auto_connect_or_merge(command.item)
+        self.undo_stack.endMacro()
 
     def _on_wire_created(self, wire: WireItem) -> None:
         self.undo_stack.push(AddWireCommand(self, wire))
 
     def _on_wire_split_requested(self, wire: WireItem, scene_pos: QPointF) -> None:
         self.undo_stack.push(SplitWireCommand(self, wire, scene_pos))
+
+    def _on_wire_tap_requested(self, start_terminal: TerminalItem, wire: WireItem, scene_pos: QPointF) -> None:
+        """A wire dragged out from `start_terminal` (the natural gesture for
+        a Node, which has no body to drag - see Shift+drag) was dropped onto
+        an existing wire instead of a terminal - split that wire with a
+        Node at scene_pos, same as a manual "Split Wire Here", then wire
+        start_terminal to the new Node, as one undo step."""
+        self.undo_stack.beginMacro("Connect to wire")
+        split_command = SplitWireCommand(self, wire, scene_pos)
+        self.undo_stack.push(split_command)
+        self.undo_stack.push(AddWireCommand(self, WireItem(start_terminal, split_command.node.terminals[0])))
+        self.undo_stack.endMacro()
 
     def _on_terminal_detach_requested(self, terminal, scene_pos: QPointF) -> None:
         command = DetachTerminalCommand(self, terminal, scene_pos)
@@ -273,29 +479,79 @@ class MainWindow(QMainWindow):
         self.undo_stack.endMacro()
 
     def _auto_connect_or_merge(self, component: ComponentItem) -> None:
-        """After `component` finishes moving, resolve any of its terminals
-        that now land exactly on top of another component's terminal:
-        - if `component` itself is a Node, it's now redundant - merge it
-          away into whatever it landed on (whichever side moved, a Node
-          dropped onto something else always disappears in favor of it).
-        - if it landed on a Node's terminal instead, that Node is now the
-          redundant one - merge it away into `component`'s terminal.
-        - otherwise (neither side is a Node), just add a wire joining them.
-        """
-        if component.component_type == JUNCTION_TYPE:
-            target = self._coincident_terminal(component.terminals[0])
-            if target is not None:
-                self.undo_stack.push(MergeNodeIntoTerminalCommand(self, component, target))
+        """After `component` finishes moving, resolve each of its terminals
+        against whatever it now sits on top of. A two-terminal component
+        that landed with BOTH terminals on the same existing wire is spliced
+        into it as a single step (see _splice_into_wire) rather than each
+        terminal being resolved independently, which would just short it out
+        in parallel with the wire's still-intact original path. Otherwise -
+        a Node's single terminal, or a regular component that only has one
+        terminal (or neither) on something - each terminal is resolved on
+        its own via _auto_connect_terminal()."""
+        if self._splice_into_wire(component):
             return
-
         for terminal in component.terminals:
-            other = self._coincident_terminal(terminal)
-            if other is None:
-                continue
-            if other.component().component_type == JUNCTION_TYPE:
+            self._auto_connect_terminal(terminal)
+
+    def _splice_into_wire(self, component: ComponentItem) -> bool:
+        """If `component` has exactly two terminals and both just landed on
+        the same existing wire's line (not at either of its own endpoints -
+        _coincident_terminal already covers landing exactly on a terminal,
+        so this only fires for a genuine "dropped across the middle of a
+        wire" case), tapping each one in independently would leave that
+        wire's original two ends still directly wired to each other -
+        shorting the new component out in parallel instead of actually
+        inserting it into the circuit. Delete that one wire instead and
+        rewire its two original endpoints straight to whichever of the
+        component's terminals is nearer each one, so current has to pass
+        through the component. Returns True if this happened."""
+        if component.component_type == JUNCTION_TYPE or len(component.terminals) != 2:
+            return False
+        t0, t1 = component.terminals
+        if self._coincident_terminal(t0) is not None or self._coincident_terminal(t1) is not None:
+            return False  # an exact terminal landing takes the usual merge/wire path instead
+
+        wire = self._wire_at(t0)
+        if wire is None or self._wire_at(t1) is not wire:
+            return False  # not the same wire (or not on a wire at all) - handle each terminal on its own
+
+        def dist(a: TerminalItem, b: TerminalItem) -> float:
+            delta = a.scenePos() - b.scenePos()
+            return (delta.x() ** 2 + delta.y() ** 2) ** 0.5
+
+        if dist(wire.start_terminal, t0) <= dist(wire.start_terminal, t1):
+            near, far = t0, t1
+        else:
+            near, far = t1, t0
+        self.undo_stack.push(SpliceComponentIntoWireCommand(self, wire, near, far))
+        return True
+
+    def _auto_connect_terminal(self, terminal: TerminalItem) -> None:
+        """Resolves one terminal that just finished moving:
+        - landed exactly on another terminal, and either side is a Node ->
+          that Node is redundant now - merge it away into the other side
+          (whichever one is the Node, regardless of which side moved).
+        - landed exactly on another terminal, neither side a Node -> wire
+          them together (unless already wired).
+        - landed on an existing wire's line (not at either of its ends) ->
+          tap into it, splitting that wire through this terminal instead of
+          through a new Node.
+        """
+        other = self._coincident_terminal(terminal)
+        if other is not None:
+            terminal_is_node = terminal.component().component_type == JUNCTION_TYPE
+            other_is_node = other.component().component_type == JUNCTION_TYPE
+            if terminal_is_node:
+                self.undo_stack.push(MergeNodeIntoTerminalCommand(self, terminal.component(), other))
+            elif other_is_node:
                 self.undo_stack.push(MergeNodeIntoTerminalCommand(self, other.component(), terminal))
             elif not terminals_already_wired(terminal, other):
                 self.undo_stack.push(AddWireCommand(self, WireItem(terminal, other)))
+            return
+
+        wire = self._wire_at(terminal)
+        if wire is not None:
+            self.undo_stack.push(ConnectTerminalToWireCommand(self, wire, terminal))
 
     def _coincident_terminal(self, terminal: TerminalItem) -> TerminalItem | None:
         """The first other terminal (belonging to a different component)
@@ -305,6 +561,38 @@ class MainWindow(QMainWindow):
             if isinstance(other, TerminalItem) and other is not terminal and other.component() is not component:
                 return other
         return None
+
+    # A terminal landing within this many scene units of a wire's line still
+    # counts as "on" it. A plain pixel hit test (scene.items(exact_point))
+    # only ever catches perfectly horizontal/vertical wires, since for any
+    # diagonal wire almost no other grid point sits mathematically exactly
+    # on its line - a small tolerance is what makes tapping work reliably
+    # for the (very common) case of two components that aren't lined up on
+    # the same row/column. Every terminal is grid-snapped (GRID_SIZE=20), so
+    # this is nowhere near large enough to ever confuse two distinct wires.
+    WIRE_TAP_TOLERANCE = 6.0
+
+    def _wire_at(self, terminal: TerminalItem) -> WireItem | None:
+        """The closest wire (belonging to some other component) passing
+        within tolerance of `terminal`'s position, if any - only meaningful
+        to call once _coincident_terminal() has already ruled out landing on
+        an actual terminal, since a wire's own endpoints would otherwise
+        match here too."""
+        component = terminal.component()
+        point = terminal.scenePos()
+        best: WireItem | None = None
+        best_dist = self.WIRE_TAP_TOLERANCE
+        for item in self.scene.items():
+            if (
+                isinstance(item, WireItem)
+                and item.start_terminal.component() is not component
+                and item.end_terminal.component() is not component
+            ):
+                dist = item.distance_to(point)
+                if dist <= best_dist:
+                    best = item
+                    best_dist = dist
+        return best
 
     def _on_component_edit_requested(self, component: ComponentItem, new_label: str, new_value: float) -> None:
         self.undo_stack.push(
@@ -370,6 +658,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         if self._maybe_save():
+            # Stop a live simulation before the window (and its scene) start
+            # tearing down - otherwise a stray indexChanged during teardown
+            # can fire _on_circuit_changed() against an already-destroyed
+            # scene.
+            self._stop_simulation()
             event.accept()
         else:
             event.ignore()
@@ -379,6 +672,7 @@ class MainWindow(QMainWindow):
     def new_circuit(self) -> None:
         if not self._maybe_save():
             return
+        self._stop_simulation()
         self.view.reset_interaction_state()
         self.scene.clear()
         self.undo_stack.clear()
@@ -441,6 +735,7 @@ class MainWindow(QMainWindow):
                         rotation=item.rotation(),
                         value=item.value,
                         label=item.label,
+                        closed=item.closed,
                     )
                 )
             elif isinstance(item, WireItem) and item.id not in seen_wire_ids:
@@ -456,6 +751,7 @@ class MainWindow(QMainWindow):
         return Circuit(components=components, wires=wires)
 
     def _load_circuit(self, circuit: Circuit) -> None:
+        self._stop_simulation()
         self.view.reset_interaction_state()
         self.scene.clear()
         self._counters = {key: 0 for key in COMPONENT_TYPES}
@@ -463,7 +759,7 @@ class MainWindow(QMainWindow):
 
         for c in circuit.components:
             item = self.add_component(
-                c.type, QPointF(c.x, c.y), label=c.label, value=c.value, component_id=c.id
+                c.type, QPointF(c.x, c.y), label=c.label, value=c.value, component_id=c.id, closed=c.closed
             )
             item.setRotation(c.rotation)
             id_to_item[c.id] = item

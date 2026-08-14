@@ -118,6 +118,56 @@ def _draw_inductor(painter: QPainter) -> None:
     painter.drawPath(path)
 
 
+def _draw_switch(painter: QPainter, closed: bool) -> None:
+    # Two contact dots with a pole/lever between them: lying flat and
+    # touching the right dot when closed, angled up and away when open.
+    gap = 8
+    left = QPointF(-gap, 0)
+    right = QPointF(gap, 0)
+
+    pen = painter.pen()
+    pen.setWidthF(2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+
+    painter.drawLine(QPointF(-BODY_WIDTH / 2, 0), left)
+    painter.drawLine(right, QPointF(BODY_WIDTH / 2, 0))
+
+    lever_end = right if closed else QPointF(right.x() - 4, right.y() - 13)
+    painter.drawLine(left, lever_end)
+
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor("#1a1a1a"))
+    painter.drawEllipse(left, 2.4, 2.4)
+    painter.drawEllipse(right, 2.4, 2.4)
+
+
+def _draw_lamp(painter: QPainter, brightness: float) -> None:
+    # Classic circle-with-an-X indicator/lamp symbol - filled with a warm
+    # glow whose strength tracks `brightness` (0 = off, 1 = full - driven by
+    # the voltage across it during a live simulation, so a capacitor-fed
+    # bulb visibly fades as it discharges rather than snapping on/off).
+    r = 12
+    pen = painter.pen()
+    pen.setWidthF(2.0)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+
+    painter.drawLine(QPointF(-BODY_WIDTH / 2, 0), QPointF(-r, 0))
+    painter.drawLine(QPointF(r, 0), QPointF(BODY_WIDTH / 2, 0))
+
+    brightness = max(0.0, min(1.0, brightness))
+    if brightness > 0.0:
+        painter.setBrush(QColor(255, 196, 64, round(235 * brightness)))
+    else:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawEllipse(QPointF(0, 0), r, r)
+
+    d = r * 0.707
+    painter.drawLine(QPointF(-d, -d), QPointF(d, d))
+    painter.drawLine(QPointF(-d, d), QPointF(d, -d))
+
+
 _SYMBOL_DRAWERS = {
     "resistor": _draw_resistor,
     "battery": _draw_battery,
@@ -126,10 +176,14 @@ _SYMBOL_DRAWERS = {
 }
 
 
-def draw_component_symbol(painter: QPainter, component_type: str) -> None:
+def draw_component_symbol(
+    painter: QPainter, component_type: str, closed: bool = True, brightness: float = 0.0
+) -> None:
     """Draws a component's leads + symbol centered on the origin, with no
     label or selection decoration. Shared by ComponentItem.paint() and the
-    palette's icon renderer so the two never drift out of sync."""
+    palette's icon renderer so the two never drift out of sync. `closed`
+    and `brightness` only matter for a switch / bulb respectively - ignored
+    by every other type."""
     if component_type == JUNCTION_TYPE:
         return  # a junction is represented solely by its terminal dot
 
@@ -139,9 +193,14 @@ def draw_component_symbol(painter: QPainter, component_type: str) -> None:
     painter.drawLine(QPointF(-TERMINAL_OFFSET, 0), QPointF(-BODY_WIDTH / 2, 0))
     painter.drawLine(QPointF(BODY_WIDTH / 2, 0), QPointF(TERMINAL_OFFSET, 0))
 
-    draw_fn = _SYMBOL_DRAWERS.get(component_type)
-    if draw_fn:
-        draw_fn(painter)
+    if component_type == "switch":
+        _draw_switch(painter, closed)
+    elif component_type == "lamp":
+        _draw_lamp(painter, brightness)
+    else:
+        draw_fn = _SYMBOL_DRAWERS.get(component_type)
+        if draw_fn:
+            draw_fn(painter)
 
 
 def render_symbol_pixmap(component_type: str) -> QPixmap:
@@ -166,7 +225,10 @@ def render_symbol_pixmap(component_type: str) -> QPixmap:
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.translate(width / 2, height / 2)
 
-    draw_component_symbol(painter, component_type)
+    # Palette icons always show a switch in its classic "open" resting
+    # position - the generic recognizable glyph, independent of whatever
+    # state a placed switch instance happens to be in.
+    draw_component_symbol(painter, component_type, closed=False)
 
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(QColor("#3a3a3a"))
@@ -184,14 +246,34 @@ class ComponentItem(QGraphicsObject):
     # MainWindow can wrap the change in an undoable command. Args: (self,
     # new_label, new_value).
     edit_requested = Signal(object, str, float)
+    # A switch was clicked (pressed and released without being dragged) -
+    # the MainWindow wraps the actual flip in an undoable command. Arg: self.
+    toggle_requested = Signal(object)
 
-    def __init__(self, component_type: str, value: float | None = None, label: str = "", component_id: str | None = None):
+    def __init__(
+        self,
+        component_type: str,
+        value: float | None = None,
+        label: str = "",
+        component_id: str | None = None,
+        closed: bool | None = None,
+    ):
         super().__init__()
         self.id = component_id or uuid.uuid4().hex
         self.component_type = component_type
         meta = COMPONENT_TYPES[component_type]
         self.value = meta.default_value if value is None else value
         self.label = label
+        # Only meaningful for "switch" (open/closed) - everything else just
+        # carries the default and ignores it. A freshly placed switch starts
+        # open, matching its palette icon; loading a saved circuit passes
+        # the saved state through explicitly instead.
+        self.closed = (component_type != "switch") if closed is None else closed
+        # Only meaningful for "lamp" - how strongly a live simulation's
+        # voltage across it should make it glow, 0 (off) to 1 (full). Set
+        # by MainWindow, not by the user.
+        self.brightness = 0.0
+        self._press_pos: QPointF | None = None
 
         self.setFlags(
             QGraphicsItem.ItemIsMovable
@@ -255,6 +337,23 @@ class ComponentItem(QGraphicsObject):
             for wire in list(terminal.wires):
                 wire.update_path()
 
+    def mousePressEvent(self, event):
+        self._press_pos = self.pos()
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        # A plain click (no drag in between) on a switch flips it - the
+        # position round-trips through the grid-snap in itemChange(), so
+        # comparing pos() before/after is a reliable "did it actually move"
+        # check rather than comparing raw event coordinates.
+        if (
+            self.component_type == "switch"
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.pos() == self._press_pos
+        ):
+            self.toggle_requested.emit(self)
+
     def mouseDoubleClickEvent(self, event):
         if self.component_type == JUNCTION_TYPE:
             return  # nothing to configure on a bare wiring node
@@ -262,7 +361,10 @@ class ComponentItem(QGraphicsObject):
         from circuit_builder.ui.edit_dialog import EditComponentDialog
 
         meta = COMPONENT_TYPES[self.component_type]
-        dialog = EditComponentDialog(self.label, self.value, meta.unit)
+        # A switch has no numeric value - its state is the open/closed
+        # toggle (click it), not something to type in here.
+        show_value = self.component_type != "switch"
+        dialog = EditComponentDialog(self.label, self.value, meta.unit, show_value=show_value)
         if dialog.exec() == EditComponentDialog.DialogCode.Accepted:
             label, value = dialog.values()
             self.edit_requested.emit(self, label, value)
@@ -284,7 +386,7 @@ class ComponentItem(QGraphicsObject):
                 self._paint_selection(painter)
             return
 
-        draw_component_symbol(painter, self.component_type)
+        draw_component_symbol(painter, self.component_type, self.closed, self.brightness)
 
         if self.isSelected():
             self._paint_selection(painter)
@@ -297,7 +399,10 @@ class ComponentItem(QGraphicsObject):
         painter.translate(0, BODY_HEIGHT / 2 + 9)
         painter.setPen(QPen(QColor("#1a1a1a")))
         painter.setFont(QFont("Segoe UI", 8))
-        text = f"{self.label}  {self._format_value()}"
+        if self.component_type == "switch":
+            text = f"{self.label}  {'Closed' if self.closed else 'Open'}"
+        else:
+            text = f"{self.label}  {self._format_value()}"
         painter.drawText(
             QRectF(-TERMINAL_OFFSET, -7, TERMINAL_OFFSET * 2, 14), Qt.AlignmentFlag.AlignCenter, text
         )

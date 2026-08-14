@@ -1,0 +1,164 @@
+{
+  "components": [
+    {
+      "id": "2b14b92cc8b94a8ba08b63bc911e4d9c",
+      "type": "junction",
+      "x": -260.0,
+      "y": -40.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J3",
+      "closed": true
+    },
+    {
+      "id": "0d89d4e2975f4340b9a72419c1694561",
+      "type": "lamp",
+      "x": -160.0,
+      "y": 40.0,
+      "rotation": 0.0,
+      "value": 50.0,
+      "label": "LP1",
+      "closed": true
+    },
+    {
+      "id": "dafc28cab7a44b01b5555c6eb2465527",
+      "type": "battery",
+      "x": -100.0,
+      "y": -120.0,
+      "rotation": 0.0,
+      "value": 9.0,
+      "label": "V1",
+      "closed": true
+    },
+    {
+      "id": "602537fc3bce4b318d38c7bb1345df6d",
+      "type": "capacitor",
+      "x": -160.0,
+      "y": -40.0,
+      "rotation": 180.0,
+      "value": 0.1,
+      "label": "C1",
+      "closed": true
+    },
+    {
+      "id": "62bf6afd5cc44429ab9bd847449fde5b",
+      "type": "switch",
+      "x": -220.0,
+      "y": -120.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "SW2",
+      "closed": true
+    },
+    {
+      "id": "8fae44c587d0401a861b6c6e70a1dd4e",
+      "type": "junction",
+      "x": -260.0,
+      "y": -40.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J1",
+      "closed": true
+    },
+    {
+      "id": "c8c96cdb1504451eb6917afbcc12c051",
+      "type": "junction",
+      "x": -60.0,
+      "y": -40.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J2",
+      "closed": true
+    }
+  ],
+  "wires": [
+    {
+      "id": "b52b9590f07a433a848d7e756a91b8e8",
+      "start": {
+        "component_id": "dafc28cab7a44b01b5555c6eb2465527",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "c8c96cdb1504451eb6917afbcc12c051",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "a5cde6393198458da425da562d768a98",
+      "start": {
+        "component_id": "62bf6afd5cc44429ab9bd847449fde5b",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "2b14b92cc8b94a8ba08b63bc911e4d9c",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "0b246bd9be1444e0b5a1d2b5e13e1d5c",
+      "start": {
+        "component_id": "2b14b92cc8b94a8ba08b63bc911e4d9c",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "602537fc3bce4b318d38c7bb1345df6d",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "fa2a195b01de45dbb636ab7497e18c19",
+      "start": {
+        "component_id": "8fae44c587d0401a861b6c6e70a1dd4e",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "2b14b92cc8b94a8ba08b63bc911e4d9c",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "d3d8041e3b444567914886cc8283cfc8",
+      "start": {
+        "component_id": "62bf6afd5cc44429ab9bd847449fde5b",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "dafc28cab7a44b01b5555c6eb2465527",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "04d80bedc23440db8f1a7d135e8fd38e",
+      "start": {
+        "component_id": "602537fc3bce4b318d38c7bb1345df6d",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "0d89d4e2975f4340b9a72419c1694561",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "a1e375592c45487497a3229d3dd9fb5f",
+      "start": {
+        "component_id": "602537fc3bce4b318d38c7bb1345df6d",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "0d89d4e2975f4340b9a72419c1694561",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "d0e0a110dc074eaab84cca4b7bdd152c",
+      "start": {
+        "component_id": "c8c96cdb1504451eb6917afbcc12c051",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "602537fc3bce4b318d38c7bb1345df6d",
+        "terminal_index": 0
+      }
+    }
+  ]
+}

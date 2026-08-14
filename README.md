@@ -15,12 +15,21 @@ python main.py
 
 ## Features
 
-- **Resistor, battery, capacitor, and inductor** components with proper
-  schematic symbols, plus a plain **Node** for junctions/taps. Place any of
-  them with a shortcut key (`R` `B` `C` `I` `N`) - a ghost preview follows
-  the cursor, `R` rotates it before you click, `Esc` cancels.
+- **Resistor, battery, capacitor, inductor, bulb, and switch** components
+  with proper schematic symbols, plus a plain **Node** for junctions/taps.
+  Place any of them with a shortcut key (`R` `B` `C` `I` `L` `S` `N`) - a
+  ghost preview follows the cursor, `R` rotates it before you click, `Esc`
+  cancels. A **Switch** starts open - click a placed one (no drag) to flip
+  it, and watch a **Bulb** light up live if Simulate is running.
 - **Wiring**: drag between two terminals to connect them. Drop one terminal
-  exactly onto another and they auto-connect - no separate wiring step.
+  onto another (or, for a diagonal wire, close enough to it) and they
+  auto-connect, or onto an existing wire's line to tap into it - no
+  separate wiring step either way, and it works for every component
+  including a Node dragging a fresh wire out of its only terminal. Drop a
+  component with both its terminals landing on that same wire and it's
+  spliced directly into it instead - the wire is deleted and rewired
+  through the component, so it actually sits in the circuit rather than
+  just shorting it out in parallel.
 - **Splitting and merging**: right-click a wire to insert a Node partway
   along it; drag a Node onto a terminal (or a terminal onto a Node) and it
   merges away, reconnecting its wires directly.
@@ -28,7 +37,22 @@ python main.py
   Move to have it follow the cursor instead. Wires stay attached and follow
   along. A terminal's wire can be detached onto a free Node the same way.
 - **Editing**: double-click a component to rename it or change its value.
-  Undo/redo covers every action, including moves and wiring.
+  Undo/redo covers every action, including moves, wiring, and switch flips.
+- **Simulate** (`F5`): starts a *live* simulation and shows the voltage at
+  every terminal - wires carry that voltage along their whole length, since
+  both ends are electrically the same node. It keeps running on its own
+  (no need to touch anything), and any edit also refreshes it immediately.
+  A **Capacitor** and an **Inductor** both genuinely evolve over real time
+  while it runs (backward-Euler integration, not just a DC snapshot) - and
+  behave as opposites of each other. Build a switch + capacitor + bulb
+  circuit (bulb in parallel with the capacitor) and watch the bulb fade out
+  over a few seconds as the capacitor drains through it after the switch
+  opens, tracing a real RC decay curve. Build a switch + inductor + bulb
+  circuit (all in series) instead and the bulb stays dark right as the
+  switch closes - the inductor blocks the sudden current - then brightens
+  smoothly as current builds up, tracing a real L/R curve. Switches are a
+  wire-or-break depending on their state. Click Stop (or press `F5` again)
+  to end it.
 - **Save/open** circuits as plain JSON, with a few example circuits included
   in `example files/` to explore or build on.
 - **Zoom, pan, and a full keyboard/mouse reference** (`Help > Controls`, or
@@ -54,6 +78,7 @@ circuit_builder/
   core/
     components.py                component type metadata (name, unit, default value, shortcut)
     circuit_model.py             Qt-free Circuit/ComponentData/WireData + JSON save/load
+    simulation.py                 Qt-free nodal analysis (MNA) solver behind Simulate - DC steady state, and a backward-Euler transient mode for capacitor charge/discharge and inductor current ramp-up/freewheel
   ui/
     component_item.py            draggable/rotatable QGraphicsItem, draws each symbol + icons
     terminal_item.py             connection-point dot on a component
@@ -62,6 +87,7 @@ circuit_builder/
     palette.py                   sidebar list of draggable component types
     edit_dialog.py                popup for editing a component's label/value
     help_dialog.py                Help > Controls reference dialog
+    simulation_overlay.py         voltage-label pills drawn on the canvas by Simulate
     commands.py                   QUndoCommand classes backing undo/redo
     icons.py                      hand-drawn toolbar icons (no external assets)
     theme.py                      app-wide QSS stylesheet
@@ -77,14 +103,16 @@ future analysis engine should build on.
 
 Not yet implemented, but planned:
 
-- **Nodal analysis (DC solve)**: walk `Circuit.wires` to group terminals into
-  electrical nodes and solve for node voltages (modified nodal analysis, to
-  handle ideal voltage sources). The Node component is exactly the kind of
-  junction this will need to resolve.
-- **Frequency-domain analysis**: extend that to complex impedances and sweep
-  frequency for Bode plots, via `matplotlib`.
-- A ground/reference symbol, short-circuit/unconnected-terminal warnings,
-  multi-select value editing, copy/paste, and right-angle wire routing.
+- **Frequency-domain analysis**: extend the solver to complex impedances
+  (`1/(jwC)`, `jwL`) and sweep frequency for Bode magnitude/phase plots, via
+  `matplotlib`.
+- A proper **ground/reference symbol** - Simulate currently defaults 0V to
+  the first battery's negative terminal since there's no dedicated component
+  for it yet.
+- **Current** readouts (not just voltage), and highlighting a shorted or
+  unconnected branch directly on the canvas rather than just a status-bar
+  warning.
+- Multi-select value editing, copy/paste, and right-angle wire routing.
 - Packaging into a standalone `.exe` once the feature set settles.
 
 ## Acknowledgements

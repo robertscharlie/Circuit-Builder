@@ -22,6 +22,10 @@ class ComponentData:
     rotation: float
     value: float
     label: str
+    # Only meaningful for type == "switch" - ignored for everything else.
+    # Defaults True so old save files (from before switches existed, which
+    # never have this key) still load without special-casing.
+    closed: bool = True
 
 
 @dataclass

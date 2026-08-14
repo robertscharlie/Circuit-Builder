@@ -182,4 +182,113 @@ assert any({w.start_terminal, w.end_terminal} == {b2.terminals[0], r1.terminals[
 )
 print("6. moving a component onto a Node also merges the Node away (reverse direction): OK")
 
+# --- 7. Dropping a regular component so BOTH of its terminals land on the
+# same existing wire splices it in (deletes that wire, rewires through the
+# component) instead of tapping each terminal in independently, which would
+# leave the wire's original ends still directly connected - shorting the
+# component out in parallel with it rather than actually inserting it -------
+nodeA = window.add_component("junction", QPointF(600, 400))
+nodeB = window.add_component("junction", QPointF(800, 400))
+wire_ab = WireItem(nodeA.terminals[0], nodeB.terminals[0])
+wire_ab.attach()
+window.scene.addItem(wire_ab)
+r3 = window.add_component("resistor", QPointF(600, 600))
+app.processEvents()
+assert wire_ab in wires_in_scene()
+
+# r3's terminals sit at local (-40, 0) / (+40, 0); centering r3 at (700,400)
+# lands terminal0 at (660,400) and terminal1 at (740,400) - both squarely
+# along wire_ab's (600,400)-(800,400) span, not at either of its own ends.
+desired_r3_pos = QPointF(700, 400)
+a3 = view.mapFromScene(r3.scenePos())
+b3 = view.mapFromScene(desired_r3_pos)
+QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, a3)
+QTest.mouseMove(vp, b3)
+app.processEvents()
+QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, b3)
+app.processEvents()
+
+assert wire_ab not in window.scene.items(), "the original wire should be deleted, not left shorting the resistor out"
+assert r3.terminals[0].scenePos() == QPointF(660, 400)
+assert r3.terminals[1].scenePos() == QPointF(740, 400)
+spliced_wires = [
+    w for w in wires_in_scene()
+    if r3.terminals[0] in (w.start_terminal, w.end_terminal) or r3.terminals[1] in (w.start_terminal, w.end_terminal)
+]
+assert len(spliced_wires) == 2, f"expected exactly 2 new wires (nodeA<->r3, r3<->nodeB), got {len(spliced_wires)}"
+assert any({w.start_terminal, w.end_terminal} == {nodeA.terminals[0], r3.terminals[0]} for w in spliced_wires), (
+    "nodeA should now connect to the resistor's near terminal"
+)
+assert any({w.start_terminal, w.end_terminal} == {r3.terminals[1], nodeB.terminals[0]} for w in spliced_wires), (
+    "the resistor's far terminal should connect to nodeB"
+)
+assert not any({w.start_terminal, w.end_terminal} == {nodeA.terminals[0], nodeB.terminals[0]} for w in wires_in_scene()), (
+    "nodeA and nodeB should no longer be directly wired - only via the resistor now"
+)
+print("7. dropping a component with both terminals on the same wire splices it in instead of shorting it out: OK")
+
+# --- 8. That splice (delete old wire + move + 2 new wires) undoes as a
+# single step, same as the merge cases above ---------------------------------
+window.undo_stack.undo()
+app.processEvents()
+assert wire_ab in window.scene.items(), "undo should restore the original wire"
+assert not any(
+    r3.terminals[0] in (w.start_terminal, w.end_terminal) or r3.terminals[1] in (w.start_terminal, w.end_terminal)
+    for w in wires_in_scene()
+), "undo should remove the splice wires"
+print("8. undo restores the original wire and un-splices the resistor as one step: OK")
+
+window.undo_stack.redo()
+app.processEvents()
+assert wire_ab not in window.scene.items()
+spliced_wires_after_redo = [
+    w for w in wires_in_scene()
+    if r3.terminals[0] in (w.start_terminal, w.end_terminal) or r3.terminals[1] in (w.start_terminal, w.end_terminal)
+]
+assert len(spliced_wires_after_redo) == 2, "redo should re-apply both splice wires"
+print("9. redo re-applies the splice: OK")
+
+# --- 10. The same splice also happens for a component dropped fresh from
+# the palette (or placed via a keyboard shortcut) - not just one that was
+# already on the canvas and got moved. _on_component_dropped is the signal
+# handler for both of those gestures (see canvas.py's dropEvent and
+# mousePressEvent's placement-click branch), so driving it directly here
+# exercises the same path a real palette drag takes. -----------------------
+nodeC = window.add_component("junction", QPointF(600, -400))
+nodeD = window.add_component("junction", QPointF(800, -400))
+wire_cd = WireItem(nodeC.terminals[0], nodeD.terminals[0])
+wire_cd.attach()
+window.scene.addItem(wire_cd)
+app.processEvents()
+
+# A resistor placed centered at (700,-400) lands its terminals at
+# (660,-400) and (740,-400) - squarely along wire_cd's span, same geometry
+# as test 7 above, but via a fresh placement instead of a move.
+resistors_before = {i for i in window.scene.items() if isinstance(i, ComponentItem) and i.component_type == "resistor"}
+window._on_component_dropped("resistor", QPointF(700, -400))
+app.processEvents()
+r4 = next(
+    i for i in window.scene.items()
+    if isinstance(i, ComponentItem) and i.component_type == "resistor" and i not in resistors_before
+)
+
+assert wire_cd not in window.scene.items(), "a component dropped fresh onto a wire should splice into it, same as a moved one"
+assert r4.terminals[0].scenePos() == QPointF(660, -400)
+assert r4.terminals[1].scenePos() == QPointF(740, -400)
+fresh_spliced = [
+    w for w in wires_in_scene()
+    if r4.terminals[0] in (w.start_terminal, w.end_terminal) or r4.terminals[1] in (w.start_terminal, w.end_terminal)
+]
+assert len(fresh_spliced) == 2, f"expected exactly 2 new wires (nodeC<->r4, r4<->nodeD), got {len(fresh_spliced)}"
+assert any({w.start_terminal, w.end_terminal} == {nodeC.terminals[0], r4.terminals[0]} for w in fresh_spliced)
+assert any({w.start_terminal, w.end_terminal} == {r4.terminals[1], nodeD.terminals[0]} for w in fresh_spliced)
+print("10. a component dropped fresh from the palette onto a wire splices in too, not just a moved one: OK")
+
+# --- 11. That's a single undo step (the add + the splice together) ---------
+window.undo_stack.undo()
+app.processEvents()
+assert r4 not in window.scene.items(), "undo should remove the just-placed component"
+assert wire_cd in window.scene.items(), "undo should restore the original wire in the same step"
+print("11. the fresh placement + splice undo together as a single step: OK")
+
 print("ALL AUTO-CONNECT TESTS PASSED")

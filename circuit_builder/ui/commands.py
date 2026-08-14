@@ -97,6 +97,94 @@ class EditComponentCommand(QUndoCommand):
         self.component.apply_edit(self.old_label, self.old_value)
 
 
+class ToggleSwitchCommand(QUndoCommand):
+    """Flips a switch's open/closed state - both redo() and undo() just flip
+    it again, since the operation is its own inverse."""
+
+    def __init__(self, component: ComponentItem):
+        super().__init__("Toggle switch")
+        self.component = component
+
+    def redo(self) -> None:
+        self.component.closed = not self.component.closed
+        self.component.update()
+
+    def undo(self) -> None:
+        self.component.closed = not self.component.closed
+        self.component.update()
+
+
+class ConnectTerminalToWireCommand(QUndoCommand):
+    """A component's terminal has landed exactly on an existing wire's line
+    (not on either of its endpoints, which would instead go through
+    AddWireCommand/MergeNodeIntoTerminalCommand) - taps into it by replacing
+    that one wire with two new ones routed through the terminal. No new
+    component is created, unlike SplitWireCommand."""
+
+    def __init__(self, main_window, wire: WireItem, terminal):
+        super().__init__("Connect to wire")
+        self.main_window = main_window
+        self.old_wire = wire
+        self.wire_a = WireItem(wire.start_terminal, terminal)
+        self.wire_b = WireItem(terminal, wire.end_terminal)
+
+    def redo(self) -> None:
+        scene = self.main_window.scene
+        self.old_wire.detach()
+        scene.removeItem(self.old_wire)
+        self.wire_a.attach()
+        scene.addItem(self.wire_a)
+        self.wire_b.attach()
+        scene.addItem(self.wire_b)
+
+    def undo(self) -> None:
+        scene = self.main_window.scene
+        self.wire_a.detach()
+        scene.removeItem(self.wire_a)
+        self.wire_b.detach()
+        scene.removeItem(self.wire_b)
+        self.old_wire.attach()
+        scene.addItem(self.old_wire)
+
+
+class SpliceComponentIntoWireCommand(QUndoCommand):
+    """A two-terminal component was dropped with BOTH of its terminals
+    landing on the same existing wire - unlike ConnectTerminalToWireCommand
+    (one terminal tapping in, leaving the wire's original path still
+    directly connected end to end), tapping in independently at each end
+    here would leave that original path intact and just short the new
+    component out in parallel with it, instead of actually inserting it
+    into the circuit. Deletes that one wire and rewires its two original
+    endpoints straight to the component's near/far terminal instead, so
+    current has to pass through the component where the wire used to run
+    straight through."""
+
+    def __init__(self, main_window, wire: WireItem, near_terminal, far_terminal):
+        super().__init__("Insert component into wire")
+        self.main_window = main_window
+        self.old_wire = wire
+        self.wire_a = WireItem(wire.start_terminal, near_terminal)
+        self.wire_b = WireItem(far_terminal, wire.end_terminal)
+
+    def redo(self) -> None:
+        scene = self.main_window.scene
+        self.old_wire.detach()
+        scene.removeItem(self.old_wire)
+        self.wire_a.attach()
+        scene.addItem(self.wire_a)
+        self.wire_b.attach()
+        scene.addItem(self.wire_b)
+
+    def undo(self) -> None:
+        scene = self.main_window.scene
+        self.wire_a.detach()
+        scene.removeItem(self.wire_a)
+        self.wire_b.detach()
+        scene.removeItem(self.wire_b)
+        self.old_wire.attach()
+        scene.addItem(self.old_wire)
+
+
 class SplitWireCommand(QUndoCommand):
     """Splits an existing wire in two by inserting a Node at scene_pos,
     rewiring the original endpoints to the node instead of to each other.

@@ -40,6 +40,14 @@ class CircuitView(QGraphicsView):
     components_moved = Signal(list)  # [(ComponentItem, QPointF old_pos, QPointF new_pos), ...]
     wire_split_requested = Signal(object, QPointF)  # WireItem, grid-snapped scene_pos
     terminal_detach_requested = Signal(object, QPointF)  # TerminalItem, its current scene_pos
+    wire_tap_requested = Signal(object, object, QPointF)  # start TerminalItem, target WireItem, grid-snapped scene_pos
+
+    # A raw mouse release is forgiving of a few pixels' imprecision when
+    # dropping a freshly-drawn wire onto an existing one - more so than the
+    # grid-exact tap check used for a component that finished *moving* (see
+    # MainWindow.WIRE_TAP_TOLERANCE), since this position comes straight
+    # from wherever the user's cursor happened to be, not a grid-snapped item.
+    WIRE_DROP_TOLERANCE = 12.0
 
     MIN_ZOOM = 0.2
     MAX_ZOOM = 5.0
@@ -87,6 +95,23 @@ class CircuitView(QGraphicsView):
         # menu_exec_override(menu) -> chosen QAction | None. Production code
         # never sets it, so real usage is unaffected.
         self._menu_exec_override = None
+
+    def _wire_near(self, scene_pos: QPointF, exclude_component) -> WireItem | None:
+        """The closest wire (not belonging to `exclude_component`) within
+        WIRE_DROP_TOLERANCE of `scene_pos`, if any."""
+        best = None
+        best_dist = self.WIRE_DROP_TOLERANCE
+        for item in self.scene().items():
+            if (
+                isinstance(item, WireItem)
+                and item.start_terminal.component() is not exclude_component
+                and item.end_terminal.component() is not exclude_component
+            ):
+                dist = item.distance_to(scene_pos)
+                if dist <= best_dist:
+                    best = item
+                    best_dist = dist
+        return best
 
     def _exec_context_menu(self, menu: QMenu, global_pos):
         if self._menu_exec_override is not None:
@@ -384,6 +409,20 @@ class CircuitView(QGraphicsView):
             ):
                 wire = WireItem(self._wire_start, end_item)
                 self.wire_created.emit(wire)
+            else:
+                # Not dropped on a terminal - maybe it was dropped on an
+                # existing wire instead, which is how a Node (whose only
+                # clickable spot is its own terminal, so it can never be
+                # dragged-onto a wire directly - see Shift+drag above) taps
+                # into one: drag a wire out of it and drop it on the target.
+                target_wire = self._wire_near(self.mapToScene(event.pos()), self._wire_start.component())
+                if target_wire is not None:
+                    tap_point = target_wire.closest_point(self.mapToScene(event.pos()))
+                    snapped = QPointF(
+                        round(tap_point.x() / GRID_SIZE) * GRID_SIZE,
+                        round(tap_point.y() / GRID_SIZE) * GRID_SIZE,
+                    )
+                    self.wire_tap_requested.emit(self._wire_start, target_wire, snapped)
 
             self._wire_start = None
             event.accept()

@@ -1,0 +1,90 @@
+{
+  "components": [
+    {
+      "id": "79420cb50d204d8983015d6d7037c004",
+      "type": "battery",
+      "x": -320,
+      "y": 0,
+      "rotation": 90,
+      "value": 9.0,
+      "label": "V1",
+      "closed": true
+    },
+    {
+      "id": "136939370e234fbc8873bf6de156aa6e",
+      "type": "switch",
+      "x": -140,
+      "y": 0,
+      "rotation": 0,
+      "value": 0.0,
+      "label": "SW1",
+      "closed": false
+    },
+    {
+      "id": "4c6aa51689954d3993698cc61aecd759",
+      "type": "inductor",
+      "x": 40,
+      "y": 0,
+      "rotation": 0,
+      "value": 20.0,
+      "label": "L1",
+      "closed": true
+    },
+    {
+      "id": "36201c70a189487b9927f726523f2103",
+      "type": "lamp",
+      "x": 220,
+      "y": 0,
+      "rotation": 0,
+      "value": 50.0,
+      "label": "LP1",
+      "closed": true
+    }
+  ],
+  "wires": [
+    {
+      "id": "7b55b028e62a47219a4d5b4e765408e5",
+      "start": {
+        "component_id": "79420cb50d204d8983015d6d7037c004",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "136939370e234fbc8873bf6de156aa6e",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "02014c108ff94bb5873f57862d1c19ba",
+      "start": {
+        "component_id": "136939370e234fbc8873bf6de156aa6e",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "4c6aa51689954d3993698cc61aecd759",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "7ed4363b92ce44e9b84a58743f436b93",
+      "start": {
+        "component_id": "4c6aa51689954d3993698cc61aecd759",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "36201c70a189487b9927f726523f2103",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "b54acf42de33410585905935bf0d4a1c",
+      "start": {
+        "component_id": "36201c70a189487b9927f726523f2103",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "79420cb50d204d8983015d6d7037c004",
+        "terminal_index": 1
+      }
+    }
+  ]
+}

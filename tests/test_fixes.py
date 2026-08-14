@@ -7,7 +7,7 @@ from PySide6.QtCore import QPointF
 from PySide6.QtWidgets import QApplication
 
 from circuit_builder.ui.main_window import MainWindow
-from circuit_builder.ui.component_item import GRID_SIZE, TERMINAL_OFFSET
+from circuit_builder.ui.component_item import GRID_SIZE
 from circuit_builder.ui.wire_item import WireItem
 from circuit_builder.ui.palette import ComponentPalette
 
@@ -89,10 +89,12 @@ os.remove(save_path)
 print("5. save/load round trip with junction: OK")
 
 # --- 6. Palette icons render actual (non-blank) pixmaps ---------------------
+from circuit_builder.core.components import COMPONENT_TYPES
+
 palette = ComponentPalette()
-assert palette.count() == 5, palette.count()
+assert palette.count() == len(COMPONENT_TYPES), palette.count()
 from circuit_builder.ui.component_item import render_symbol_pixmap
-for key in ("resistor", "battery", "capacitor", "inductor", "junction"):
+for key in COMPONENT_TYPES:
     pix = render_symbol_pixmap(key)
     img = pix.toImage()
     has_ink = any(

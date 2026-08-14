@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 SIZE = 22
 _STROKE = QColor("#d7d7d7")
@@ -69,8 +69,6 @@ def redo_icon() -> QIcon:
 def _magnifier(p: QPainter, plus: bool, minus: bool) -> None:
     cx, cy, r = SIZE / 2 - 2, SIZE / 2 - 2, 6.5
     p.drawEllipse(QPointF(cx, cy), r, r)
-    handle_dir = QPointF(math.cos(math.radians(45)), -math.sin(math.radians(45)))
-    start = QPointF(cx + r * handle_dir.x(), cy - r * handle_dir.y() * -1)
     p.drawLine(
         QPointF(cx + r * 0.75, cy + r * 0.75),
         QPointF(cx + r * 1.9, cy + r * 1.9),
@@ -127,6 +125,31 @@ def pan_icon() -> QIcon:
         path.lineTo(tip)
         _arrowhead(path, tip, angle, length=4.5, spread=25)
     p.drawPath(path)
+    p.end()
+    return QIcon(pm)
+
+
+def simulate_icon() -> QIcon:
+    pm = _pixmap()
+    p = _painter(pm)
+    m = 5
+    triangle = QPainterPath()
+    triangle.moveTo(m + 1, m)
+    triangle.lineTo(m + 1, SIZE - m)
+    triangle.lineTo(SIZE - m, SIZE / 2)
+    triangle.closeSubpath()
+    p.setBrush(QBrush(_STROKE))
+    p.drawPath(triangle)
+    p.end()
+    return QIcon(pm)
+
+
+def stop_icon() -> QIcon:
+    pm = _pixmap()
+    p = _painter(pm)
+    m = 6
+    p.setBrush(QBrush(_STROKE))
+    p.drawRoundedRect(QRectF(m, m, SIZE - 2 * m, SIZE - 2 * m), 2, 2)
     p.end()
     return QIcon(pm)
 

@@ -21,6 +21,9 @@ SCRIPTS = [
     "test_detach_terminal.py",
     "test_auto_connect.py",
     "test_click_region.py",
+    "test_simulation.py",
+    "test_wire_tap.py",
+    "test_transient_simulation.py",
 ]
 
 failed = []

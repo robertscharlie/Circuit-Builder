@@ -1,0 +1,185 @@
+{
+  "components": [
+    {
+      "id": "f2f3d3daa8cb4aa286f515ffaed584ad",
+      "type": "resistor",
+      "x": -200.0,
+      "y": 180.0,
+      "rotation": 0.0,
+      "value": 1000.0,
+      "label": "R3",
+      "closed": true
+    },
+    {
+      "id": "fa90c8082d714a8d98129a7f737738fe",
+      "type": "junction",
+      "x": 100.0,
+      "y": 120.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J4",
+      "closed": true
+    },
+    {
+      "id": "12ae7409be3b4d17a794362849d10c2f",
+      "type": "junction",
+      "x": -320.0,
+      "y": 120.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J2",
+      "closed": true
+    },
+    {
+      "id": "a980898053d240c28df2b94e3fe5c3be",
+      "type": "lamp",
+      "x": 60.0,
+      "y": 60.0,
+      "rotation": 0.0,
+      "value": 50.0,
+      "label": "LP1",
+      "closed": true
+    },
+    {
+      "id": "dd8765500662474c9eb0851ca3e88d34",
+      "type": "capacitor",
+      "x": 60.0,
+      "y": -20.0,
+      "rotation": 0.0,
+      "value": 0.01,
+      "label": "C1",
+      "closed": true
+    },
+    {
+      "id": "beba8af6b8644b67845f777450b32242",
+      "type": "junction",
+      "x": -120.0,
+      "y": 0.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J1",
+      "closed": true
+    },
+    {
+      "id": "d3f73e11ad36488691855d0c49c2d553",
+      "type": "switch",
+      "x": -200.0,
+      "y": 0.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "SW1",
+      "closed": false
+    },
+    {
+      "id": "d9bc9a6866f3461ebabee3f3ca32d030",
+      "type": "battery",
+      "x": -320.0,
+      "y": 40.0,
+      "rotation": 90.0,
+      "value": 9.0,
+      "label": "V1",
+      "closed": true
+    }
+  ],
+  "wires": [
+    {
+      "id": "36065510e03f48459f07865eb7ad5792",
+      "start": {
+        "component_id": "f2f3d3daa8cb4aa286f515ffaed584ad",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "fa90c8082d714a8d98129a7f737738fe",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "e23d531c60124c8bbdaa864853fb3617",
+      "start": {
+        "component_id": "12ae7409be3b4d17a794362849d10c2f",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "f2f3d3daa8cb4aa286f515ffaed584ad",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "46420e1a3690417ba1b420463fa18e3b",
+      "start": {
+        "component_id": "beba8af6b8644b67845f777450b32242",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "a980898053d240c28df2b94e3fe5c3be",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "71ffc4d12e50485db28390e4a6ed69f0",
+      "start": {
+        "component_id": "fa90c8082d714a8d98129a7f737738fe",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "a980898053d240c28df2b94e3fe5c3be",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "fe59acc17c3949139900cb649e106616",
+      "start": {
+        "component_id": "dd8765500662474c9eb0851ca3e88d34",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "a980898053d240c28df2b94e3fe5c3be",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "9cb3c567149b424a829ed78ee02ccf47",
+      "start": {
+        "component_id": "12ae7409be3b4d17a794362849d10c2f",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "d9bc9a6866f3461ebabee3f3ca32d030",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "8ca4015661104b3b8fe7b99f2ca8652d",
+      "start": {
+        "component_id": "beba8af6b8644b67845f777450b32242",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "dd8765500662474c9eb0851ca3e88d34",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "e586e110db984e728e6ba0ebb9d15de5",
+      "start": {
+        "component_id": "d3f73e11ad36488691855d0c49c2d553",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "beba8af6b8644b67845f777450b32242",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "1c23e9bc190146c2ab5e2c8d64268e2b",
+      "start": {
+        "component_id": "d9bc9a6866f3461ebabee3f3ca32d030",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "d3f73e11ad36488691855d0c49c2d553",
+        "terminal_index": 0
+      }
+    }
+  ]
+}
