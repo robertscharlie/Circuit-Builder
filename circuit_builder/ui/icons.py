@@ -154,6 +154,35 @@ def stop_icon() -> QIcon:
     return QIcon(pm)
 
 
+def frequency_response_icon() -> QIcon:
+    """A small chart axis with a Bode-magnitude-style curve inside it -
+    flat, then rolling off - reads as "frequency response" at a glance
+    without needing to be literal."""
+    pm = _pixmap()
+
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    axis_pen = QPen(_STROKE, 1.1)
+    axis_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(axis_pen)
+    p.drawLine(QPointF(4, 3), QPointF(4, 18))
+    p.drawLine(QPointF(4, 18), QPointF(19, 18))
+
+    curve_pen = QPen(_STROKE, 1.8)
+    curve_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    curve_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(curve_pen)
+    path = QPainterPath()
+    path.moveTo(6.5, 7)
+    path.lineTo(10, 7)
+    path.cubicTo(14, 7, 12.5, 15, 17.5, 15)
+    p.drawPath(path)
+
+    p.end()
+    return QIcon(pm)
+
+
 def reset_zoom_icon() -> QIcon:
     pm = _pixmap()
     p = _painter(pm)

@@ -39,8 +39,10 @@ class CircuitView(QGraphicsView):
     wire_created = Signal(object)  # WireItem - not a QObject, so plain 'object'
     components_moved = Signal(list)  # [(ComponentItem, QPointF old_pos, QPointF new_pos), ...]
     wire_split_requested = Signal(object, QPointF)  # WireItem, grid-snapped scene_pos
+    wire_split_and_move_requested = Signal(object, QPointF)  # WireItem, grid-snapped scene_pos
     terminal_detach_requested = Signal(object, QPointF)  # TerminalItem, its current scene_pos
     wire_tap_requested = Signal(object, object, QPointF)  # start TerminalItem, target WireItem, grid-snapped scene_pos
+    frequency_response_requested = Signal(object)  # TerminalItem to probe
 
     # A raw mouse release is forgiving of a few pixels' imprecision when
     # dropping a freshly-drawn wire onto an existing one - more so than the
@@ -175,14 +177,22 @@ class CircuitView(QGraphicsView):
     def _show_wire_context_menu(self, wire: WireItem, viewport_pos) -> None:
         menu = QMenu(self)
         split_action = menu.addAction("Split Wire Here")
+        split_and_move_action = menu.addAction("Split and Move")
+        split_and_move_action.setToolTip(
+            "Split the wire here, then immediately follow the cursor with the new Node until your next "
+            "click - skips the separate drag/Move step when you already know it needs repositioning"
+        )
         chosen = self._exec_context_menu(menu, self.viewport().mapToGlobal(viewport_pos))
-        if chosen == split_action:
+        if chosen in (split_action, split_and_move_action):
             scene_pos = self.mapToScene(viewport_pos)
             snapped = QPointF(
                 round(scene_pos.x() / GRID_SIZE) * GRID_SIZE,
                 round(scene_pos.y() / GRID_SIZE) * GRID_SIZE,
             )
-            self.wire_split_requested.emit(wire, snapped)
+            if chosen == split_action:
+                self.wire_split_requested.emit(wire, snapped)
+            else:
+                self.wire_split_and_move_requested.emit(wire, snapped)
 
     def _show_component_context_menu(self, component: ComponentItem, viewport_pos) -> None:
         menu = QMenu(self)
@@ -193,11 +203,29 @@ class CircuitView(QGraphicsView):
             self.start_move_component(component)
 
     def _show_terminal_context_menu(self, terminal: TerminalItem, viewport_pos) -> None:
+        component = terminal.component()
         menu = QMenu(self)
-        move_action = menu.addAction("Move Node")
+        # A wired, non-Node terminal detaches its wire(s) onto a new free
+        # Node (same as before); anything else (a Node's own terminal, or
+        # an unconnected regular terminal) just moves the whole component,
+        # same as right-clicking its body - a terminal alone isn't
+        # draggable in either of those cases.
+        detach_action = None
+        move_whole_action = None
+        if component.component_type != JUNCTION_TYPE and terminal.wires:
+            detach_action = menu.addAction("Move Node")
+        else:
+            label = "Move Node" if component.component_type == JUNCTION_TYPE else "Move Component"
+            move_whole_action = menu.addAction(label)
+        menu.addSeparator()
+        freq_response_action = menu.addAction("Frequency Response...")
         chosen = self._exec_context_menu(menu, self.viewport().mapToGlobal(viewport_pos))
-        if chosen == move_action:
+        if detach_action is not None and chosen == detach_action:
             self.terminal_detach_requested.emit(terminal, terminal.scenePos())
+        elif move_whole_action is not None and chosen == move_whole_action:
+            self.start_move_component(component)
+        elif chosen == freq_response_action:
+            self.frequency_response_requested.emit(terminal)
 
     def event(self, event):
         # MainWindow binds "R" and "Esc" as global QAction shortcuts (rotate
@@ -280,15 +308,12 @@ class CircuitView(QGraphicsView):
         if event.button() == Qt.MouseButton.RightButton:
             item = self.itemAt(event.pos())
             if isinstance(item, TerminalItem):
-                # A regular component's terminal with a wire on it gets its
-                # own menu (detach that wire onto a free Node) - a Node's own
-                # terminal, or an unconnected terminal, falls back to moving
-                # the whole component, same as clicking its body.
-                if item.component().component_type != JUNCTION_TYPE and item.wires:
-                    self._show_terminal_context_menu(item, event.pos())
-                    event.accept()
-                    return
-                item = item.component()
+                # Every terminal gets a menu (which action leads it depends
+                # on whether it's wired/a Node - see _show_terminal_context_menu),
+                # since Frequency Response is available from any of them.
+                self._show_terminal_context_menu(item, event.pos())
+                event.accept()
+                return
             if isinstance(item, WireItem):
                 self._show_wire_context_menu(item, event.pos())
                 event.accept()

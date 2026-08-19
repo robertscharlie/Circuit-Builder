@@ -49,17 +49,32 @@ _CONTROLS_HTML = """
   <li>Right-click a component or Node and choose <b>Move</b> as an
     alternative to dragging - it then follows the cursor until your next
     click.</li>
+  <li>Renaming a Node (double-click it) gives its whole electrical point a
+    real name, e.g. "Vout" - Frequency Response's Output list (below) picks
+    that name up automatically instead of an auto-numbered "Node 3: ...",
+    so naming a point you care about ahead of time makes it much easier to
+    find in the dropdown later.</li>
 </ul>
 
 <h3>Right-click menus</h3>
 <ul>
   <li><b>On a wire</b> - <i>Split Wire Here</i> inserts a Node at the
-    nearest grid point, splitting the wire in two.</li>
+    nearest grid point, splitting the wire in two. <i>Split and Move</i>
+    does the same split, then immediately hands the new Node to the cursor
+    (follows it until your next click, same as picking Move afterward)
+    instead of leaving it sitting still - handy when you already know it
+    needs repositioning.</li>
   <li><b>On a component or Node</b> - <i>Move</i> lets you relocate it by
     clicking its new spot instead of dragging.</li>
   <li><b>On a wired terminal</b> - <i>Move Node</i> detaches that wire onto
     a new free Node, disconnecting it from the component so it can be
     dragged elsewhere.</li>
+  <li><b>On any terminal</b> - <i>Frequency Response...</i> opens a Bode
+    plot for that point's electrical node (see "Frequency Response" below),
+    highlighting every terminal belonging to that node on the canvas with a
+    green ring for as long as the panel stays visible. Available on every
+    terminal, wired or not, alongside whichever of the above also applies
+    to it.</li>
 </ul>
 
 <h3>Auto-connect</h3>
@@ -111,6 +126,70 @@ _CONTROLS_HTML = """
     isn't determined by the circuit.</li>
   <li>Click <b>Stop</b> (the same button, now showing a stop icon - or
     <code>F5</code> again) to end the live simulation and clear the labels.</li>
+</ul>
+
+<h3>Frequency Response</h3>
+<ul>
+  <li>Right-click any terminal and choose <i>Frequency Response...</i>, or
+    use the toolbar button (a small chart icon, next to Simulate) or
+    <b>Simulate &gt; Frequency Response...</b> to open it without picking a
+    terminal first, for a Bode plot - magnitude (dB) and phase (degrees) of
+    a chosen point, swept across a range of frequencies. Unlike Simulate
+    (a single instant), this shows how the circuit responds across a whole
+    frequency range at once.</li>
+  <li>It opens as a panel docked into this same window, right beside the
+    canvas rather than a popup blocking it. Its title bar has a small
+    float button to pop it into its own separate window whenever you want
+    it out of the way - drag it back onto the main window to re-dock it,
+    or just leave it floating. Closing it (the X button) hides it without
+    losing your settings; asking for Frequency Response again reuses the
+    same panel and just re-targets it, rather than opening a second one.</li>
+  <li>Every terminal belonging to the probed node is marked with a green
+    ring on the canvas the whole time the panel is visible (docked or
+    floating), so it's always clear which point the plot is showing.</li>
+  <li>The panel has explicit <b>Input</b> and <b>Output</b> dropdowns
+    instead of quietly assuming them: <b>Input</b> picks which battery is
+    the swept AC excitation (held at unit amplitude - its own rated
+    voltage doesn't matter, only its position in the circuit; every other
+    battery is treated as an AC short, the standard convention for
+    isolating one source's contribution). <b>Output</b> picks which
+    <i>electrical node</i> is probed - terminals that are wired together
+    are grouped into one clearly labeled entry (e.g.
+    <code>Node 3: R1 terminal 1, C1 terminal 0</code>, or just
+    <code>Vout (...)</code> if you've renamed a Node placed there - see
+    "Moving things" above) instead of listing every terminal separately,
+    since two entries that are actually wired together give identical
+    results and would otherwise look like different choices. Both Input
+    and Output start out set by however the panel was opened, but can be
+    changed from their dropdowns at any time - an italic line underneath
+    spells out, in plain terms, what's being varied (frequency) and what
+    the current Input/Output actually are.</li>
+  <li>The plotted voltage is always relative to the <i>chosen</i> Input
+    battery's own negative terminal - that's the 0V reference for the
+    sweep, and it moves with whichever battery is picked as Input. This is
+    different from Simulate, which always references the first battery in
+    the circuit regardless.</li>
+  <li>Resistors stay purely real; capacitors and inductors become complex
+    impedances (<code>1/(jwC)</code>, <code>jwL</code>) that change with
+    frequency.</li>
+  <li>The plot is one big chart with <b>Magnitude</b> and <b>Phase</b> tab
+    buttons above it, rather than two small stacked ones - click either to
+    switch, instantly (it's just re-drawing the same already-solved sweep,
+    not re-sweeping). Hover the mouse over the plot to read out the exact
+    frequency, magnitude, AND phase together at that point (regardless of
+    which tab is currently showing), with a thin crosshair marking it.</li>
+  <li>The panel isn't modal, so you can keep editing the circuit while it
+    stays open - click <b>Replot</b> to both re-sweep and pick up any
+    structural changes since it was opened (new, renamed, or removed
+    components), keeping your current Input/Output selections if they
+    still exist.</li>
+  <li>The initial sweep range is auto-suggested from the circuit's own
+    R/L/C values - it estimates every R-C/R-L corner and L-C resonant
+    frequency actually present and spans a couple of decades past the
+    extremes, so the interesting part of the curve is visible immediately
+    rather than needing a manual widen first. Enter a different start/end
+    frequency (Hz) and click <b>Replot</b> to zoom further into a corner or
+    resonant peak.</li>
 </ul>
 
 <h3>Editing</h3>

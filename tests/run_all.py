@@ -24,6 +24,9 @@ SCRIPTS = [
     "test_simulation.py",
     "test_wire_tap.py",
     "test_transient_simulation.py",
+    "test_ac_simulation.py",
+    "test_ac_circuits_extra.py",
+    "test_bode_dialog.py",
 ]
 
 failed = []

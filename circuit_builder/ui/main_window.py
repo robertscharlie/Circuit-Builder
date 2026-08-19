@@ -24,6 +24,7 @@ from circuit_builder.ui.commands import (
     SplitWireCommand,
     ToggleSwitchCommand,
 )
+from circuit_builder.ui.bode_dialog import BodePanel
 from circuit_builder.ui.component_item import ComponentItem, GRID_SIZE, JUNCTION_TYPE
 from circuit_builder.ui.help_dialog import ControlsHelpDialog
 from circuit_builder.ui import icons
@@ -60,8 +61,10 @@ class MainWindow(QMainWindow):
         self.view.wire_created.connect(self._on_wire_created)
         self.view.components_moved.connect(self._on_components_moved)
         self.view.wire_split_requested.connect(self._on_wire_split_requested)
+        self.view.wire_split_and_move_requested.connect(self._on_wire_split_and_move_requested)
         self.view.terminal_detach_requested.connect(self._on_terminal_detach_requested)
         self.view.wire_tap_requested.connect(self._on_wire_tap_requested)
+        self.view.frequency_response_requested.connect(self._on_frequency_response_requested)
 
         palette_dock = QDockWidget("Components", self)
         palette_dock.setWidget(ComponentPalette(self))
@@ -91,6 +94,9 @@ class MainWindow(QMainWindow):
         self._simulation_labels: list[VoltageLabelItem] = []
         self._simulation_active = False
         self._transient_state: TransientState | None = None
+        self._probe_highlight_terminals: list[TerminalItem] = []
+        self._bode_panel: BodePanel | None = None
+        self._bode_dock: QDockWidget | None = None
         self._sim_timer = QTimer(self)
         self._sim_timer.setInterval(SIM_TICK_MS)
         self._sim_timer.timeout.connect(self._on_sim_tick)
@@ -168,6 +174,15 @@ class MainWindow(QMainWindow):
         toolbar.addAction(simulate_action)
         self._simulate_action = simulate_action
 
+        frequency_response_action = QAction(icons.frequency_response_icon(), "Frequency Response...", self)
+        frequency_response_action.setToolTip(
+            "Frequency Response - open a Bode plot; pick which source to sweep (Input) and which node to "
+            "probe (Output) from dropdowns in the panel"
+        )
+        frequency_response_action.triggered.connect(self._show_frequency_response_panel)
+        toolbar.addAction(frequency_response_action)
+        self._frequency_response_action = frequency_response_action
+
     def _build_component_shortcuts(self) -> None:
         """One QAction per component type: pressing its shortcut key drops the
         canvas into placement mode (a ghost symbol follows the cursor until
@@ -243,6 +258,8 @@ class MainWindow(QMainWindow):
 
         simulate_menu = self.menuBar().addMenu("&Simulate")
         simulate_menu.addAction(self._simulate_action)
+        simulate_menu.addSeparator()
+        simulate_menu.addAction(self._frequency_response_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         controls_action = QAction("Controls...", self)
@@ -448,6 +465,15 @@ class MainWindow(QMainWindow):
     def _on_wire_split_requested(self, wire: WireItem, scene_pos: QPointF) -> None:
         self.undo_stack.push(SplitWireCommand(self, wire, scene_pos))
 
+    def _on_wire_split_and_move_requested(self, wire: WireItem, scene_pos: QPointF) -> None:
+        """"Split and Move": same split as above, but the new Node is
+        immediately handed to move-mode (follows the cursor until the next
+        click) instead of staying put - for when you already know it needs
+        repositioning, skipping the separate drag/Move step."""
+        command = SplitWireCommand(self, wire, scene_pos)
+        self.undo_stack.push(command)
+        self.view.start_move_component(command.node)
+
     def _on_wire_tap_requested(self, start_terminal: TerminalItem, wire: WireItem, scene_pos: QPointF) -> None:
         """A wire dragged out from `start_terminal` (the natural gesture for
         a Node, which has no body to drag - see Shift+drag) was dropped onto
@@ -459,6 +485,96 @@ class MainWindow(QMainWindow):
         self.undo_stack.push(split_command)
         self.undo_stack.push(AddWireCommand(self, WireItem(start_terminal, split_command.node.terminals[0])))
         self.undo_stack.endMacro()
+
+    def _on_frequency_response_requested(self, terminal: TerminalItem) -> None:
+        """Right-click "Frequency Response..." on a terminal - opens the
+        Bode panel with that terminal preselected as the Output (probe)."""
+        component = terminal.component()
+        self._open_bode_panel(component.id, terminal.index)
+
+    def _show_frequency_response_panel(self) -> None:
+        """Simulate menu / toolbar button - opens the Bode panel without a
+        right-clicked terminal to start from. Defaults Output to the first
+        non-battery component's terminal 0 (probing a battery's own
+        terminal is a poor starting point - it always reads a flat unity
+        gain, since it IS the excitation); falls back to whatever's there
+        if the circuit is nothing but batteries. The panel's own dropdowns
+        let the user redirect either Input or Output from here."""
+        circuit = self._build_circuit_model()
+        if not circuit.components:
+            self.statusBar().showMessage("Nothing to analyze - add some components first.", 4000)
+            return
+        default = next((c for c in circuit.components if c.type != "battery"), circuit.components[0])
+        self._open_bode_panel(default.id, 0)
+
+    def _open_bode_panel(self, probe_component_id: str, probe_terminal_index: int) -> None:
+        """Shared by every entry point above. The panel lives in a dock
+        widget docked into this same window - Qt's own dock chrome already
+        gives it a "float into its own window" button and lets it be
+        dragged out, so repeated requests reuse the same instance (via
+        set_probe()) rather than creating a new one each time, and just
+        show/raise it if it's already open somewhere."""
+        if self._bode_panel is None:
+            self._bode_panel = BodePanel(
+                self._build_circuit_model,
+                probe_component_id,
+                probe_terminal_index,
+                on_probe_changed=self._set_probe_highlight,
+            )
+            self._bode_panel.title_changed.connect(self._on_bode_title_changed)
+            self._bode_dock = QDockWidget(self._bode_panel.title(), self)
+            self._bode_dock.setObjectName("bodeDock")
+            self._bode_dock.setWidget(self._bode_panel)
+            self._bode_dock.setFeatures(
+                QDockWidget.DockWidgetFeature.DockWidgetMovable
+                | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+                | QDockWidget.DockWidgetFeature.DockWidgetClosable
+            )
+            self._bode_dock.visibilityChanged.connect(self._on_bode_visibility_changed)
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._bode_dock)
+            self.resizeDocks([self._bode_dock], [620], Qt.Orientation.Horizontal)
+        else:
+            self._bode_panel.set_probe(probe_component_id, probe_terminal_index)
+        self._bode_dock.setVisible(True)
+        self._bode_dock.raise_()
+
+    def _on_bode_title_changed(self, title: str) -> None:
+        if self._bode_dock is not None:
+            self._bode_dock.setWindowTitle(title)
+
+    def _on_bode_visibility_changed(self, visible: bool) -> None:
+        """Keeps the canvas highlight in sync with whether the panel is
+        actually on screen - lit while it's visible (docked or floating),
+        cleared the moment it's hidden (closed), whichever probed node it
+        was last showing."""
+        if visible and self._bode_panel is not None:
+            group = self._bode_panel.output_combo.currentData()
+            if group:
+                self._set_probe_highlight(group)
+        else:
+            self._clear_probe_highlight()
+
+    def _find_terminal_item(self, component_id: str, terminal_index: int) -> TerminalItem | None:
+        for item in self.scene.items():
+            if isinstance(item, ComponentItem) and item.id == component_id:
+                return item.terminals[terminal_index]
+        return None
+
+    def _set_probe_highlight(self, terminals: list[tuple[str, int]]) -> None:
+        """Highlights every terminal in `terminals` - a whole electrical
+        node's worth (see BodeDialog's Output list, which groups terminals
+        by node), not just one dot, since they're all the same electrical
+        point and should read that way on the canvas too."""
+        self._clear_probe_highlight()
+        found = [t for t in (self._find_terminal_item(cid, idx) for cid, idx in terminals) if t is not None]
+        for terminal in found:
+            terminal.set_probed(True)
+        self._probe_highlight_terminals = found
+
+    def _clear_probe_highlight(self) -> None:
+        for terminal in self._probe_highlight_terminals:
+            terminal.set_probed(False)
+        self._probe_highlight_terminals = []
 
     def _on_terminal_detach_requested(self, terminal, scene_pos: QPointF) -> None:
         command = DetachTerminalCommand(self, terminal, scene_pos)

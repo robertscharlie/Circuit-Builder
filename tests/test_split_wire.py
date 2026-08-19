@@ -98,4 +98,69 @@ window.split_selected_wire()
 assert len(window.scene.items()) == before_count, "Split Wire with no selection should do nothing"
 print("6. Edit > Split Wire with no wire selected is a no-op: OK")
 
+# --- 7. Right-click a wire -> "Split and Move" -> splits it AND immediately
+# hands the new Node to move-mode (follows the cursor, same as picking
+# "Move Node" afterward separately) instead of leaving it sitting still. ----
+
+wire_for_move_split = [i for i in window.scene.items() if isinstance(i, WireItem)][0]
+view._menu_exec_override = lambda menu: next(a for a in menu.actions() if a.text() == "Split and Move")
+
+before_junctions = {i for i in window.scene.items() if isinstance(i, ComponentItem) and i.component_type == "junction"}
+start = wire_for_move_split.start_terminal.scenePos()
+end = wire_for_move_split.end_terminal.scenePos()
+click_scene_pos2 = QPointF((start.x() + end.x()) / 2, (start.y() + end.y()) / 2)  # wire's midpoint - clear of both terminals
+right_click(view.mapFromScene(click_scene_pos2))
+app.processEvents()
+
+after_junctions = {i for i in window.scene.items() if isinstance(i, ComponentItem) and i.component_type == "junction"}
+new_nodes = after_junctions - before_junctions
+assert len(new_nodes) == 1, f"expected exactly one new Node from the split, got {len(new_nodes)}"
+new_node = next(iter(new_nodes))
+assert view._pending_move_target is new_node, "the new Node should immediately be in move-mode, following the cursor"
+print("7. right-click a wire -> Split and Move -> splits it AND puts the new Node into move-mode right away: OK")
+
+# Moving the mouse actually moves it, and clicking drops it at the new spot
+# (a SEPARATE undo step from the split, same as the existing detach+move
+# pattern - splitting alone shouldn't force a specific final position).
+drop_scene_pos = QPointF(new_node.pos().x() + 60, new_node.pos().y() + 40)
+move_event = QMouseEvent(
+    QEvent.Type.MouseMove,
+    view.mapFromScene(drop_scene_pos),
+    view.mapFromScene(drop_scene_pos),
+    Qt.MouseButton.NoButton,
+    Qt.MouseButton.NoButton,
+    Qt.KeyboardModifier.NoModifier,
+)
+view.mouseMoveEvent(move_event)
+app.processEvents()
+assert new_node.pos() == QPointF(round(drop_scene_pos.x() / 20) * 20, round(drop_scene_pos.y() / 20) * 20), (
+    "the Node should follow the cursor (grid-snapped) while the move is pending"
+)
+
+left_click_pos = view.mapFromScene(drop_scene_pos)
+left_click = QMouseEvent(QEvent.Type.MouseButtonPress, left_click_pos, left_click_pos, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+view.mousePressEvent(left_click)
+app.processEvents()
+assert view._pending_move_target is None, "clicking should drop the Node and end the pending move"
+print("8. moving the mouse follows the cursor (grid-snapped), and clicking drops it at the new spot: OK")
+
+# Split and the drop-move are two separate undo steps: undoing once only
+# undoes the move (Node stays, back at its split-time position); undoing
+# again removes the split itself.
+node_pos_after_drop = new_node.pos()
+window.undo_stack.undo()
+app.processEvents()
+assert new_node in [i for i in window.scene.items() if isinstance(i, ComponentItem)], "undoing the move shouldn't remove the Node itself"
+assert new_node.pos() != node_pos_after_drop, "undoing the move should restore its split-time position"
+window.undo_stack.undo()
+app.processEvents()
+assert new_node not in window.scene.items(), "undoing the split itself should remove the Node"
+print("9. the split and the subsequent move are separate undo steps: OK")
+
+window.undo_stack.redo()
+window.undo_stack.redo()
+app.processEvents()
+assert new_node.pos() == node_pos_after_drop, "redoing both steps should restore the split then the moved position"
+print("10. redo re-applies both the split and the move: OK")
+
 print("ALL SPLIT-WIRE TESTS PASSED")
