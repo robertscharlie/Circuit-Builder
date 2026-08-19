@@ -291,4 +291,42 @@ assert r4 not in window.scene.items(), "undo should remove the just-placed compo
 assert wire_cd in window.scene.items(), "undo should restore the original wire in the same step"
 print("11. the fresh placement + splice undo together as a single step: OK")
 
+# --- 12. Splicing must not create a duplicate wire either, when the
+# component being spliced in is already directly wired to one of the
+# target wire's endpoints (e.g. it was wired elsewhere in the diagram
+# before being dragged on top of this wire). --------------------------------
+nodeE = window.add_component("junction", QPointF(600, -800))
+nodeF = window.add_component("junction", QPointF(800, -800))
+wire_ef = WireItem(nodeE.terminals[0], nodeF.terminals[0])
+wire_ef.attach()
+window.scene.addItem(wire_ef)
+
+r5 = window.add_component("resistor", QPointF(600, -600))
+pre_existing = WireItem(r5.terminals[1], nodeF.terminals[0])  # r5 already wired to nodeF elsewhere
+pre_existing.attach()
+window.scene.addItem(pre_existing)
+app.processEvents()
+
+# center r5 at (700,-800): terminal0 lands at (660,-800, nearer to nodeE),
+# terminal1 at (740,-800, nearer to nodeF) - both on wire_ef's span,
+# splicing r5 in. terminal1 ends up as the "far" (nodeF-side) terminal,
+# which already has a direct wire to nodeF.
+desired_r5_pos = QPointF(700, -800)
+a5 = view.mapFromScene(r5.scenePos())
+b5 = view.mapFromScene(desired_r5_pos)
+QTest.mousePress(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, a5)
+QTest.mouseMove(vp, b5)
+app.processEvents()
+QTest.mouseRelease(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, b5)
+app.processEvents()
+
+assert wire_ef not in window.scene.items(), "the target wire should still have been spliced through"
+assert pre_existing in window.scene.items(), "r5's pre-existing wire to nodeF should be left alone, not duplicated"
+all_pairs = [frozenset({w.start_terminal, w.end_terminal}) for w in wires_in_scene()]
+assert len(all_pairs) == len(set(all_pairs)), "no two wires should connect the exact same pair of terminals"
+r5_wires = [w for w in wires_in_scene() if r5.terminals[0] in (w.start_terminal, w.end_terminal) or r5.terminals[1] in (w.start_terminal, w.end_terminal)]
+assert len(r5_wires) == 2, f"expected exactly 2 wires on r5 (the untouched pre-existing one, plus one new near-side splice wire), got {len(r5_wires)}"
+assert any(frozenset({r5.terminals[0], nodeE.terminals[0]}) == p for p in all_pairs), "r5's near terminal should be newly wired to nodeE"
+print("12. splicing a component that's already wired to one of the target wire's endpoints doesn't duplicate that wire: OK")
+
 print("ALL AUTO-CONNECT TESTS PASSED")

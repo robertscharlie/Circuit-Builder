@@ -5,6 +5,7 @@ from PySide6.QtGui import QUndoCommand
 
 from circuit_builder.core.components import COMPONENT_TYPES
 from circuit_builder.ui.component_item import ComponentItem
+from circuit_builder.ui.terminal_item import terminals_already_wired
 from circuit_builder.ui.wire_item import WireItem
 
 
@@ -114,6 +115,17 @@ class ToggleSwitchCommand(QUndoCommand):
         self.component.update()
 
 
+def _wire_unless_duplicate(a, b) -> WireItem | None:
+    """A new WireItem between `a` and `b`, or None if they're already wired
+    directly to each other. Used when splitting an existing wire into two
+    new segments through a tapping-in terminal: that terminal might already
+    happen to have its own separate wire straight to one of the original
+    wire's endpoints (e.g. it was wired elsewhere in the diagram before
+    being dragged on top of this wire) - reusing that existing connection
+    instead of adding a redundant parallel wire on top of it."""
+    return None if terminals_already_wired(a, b) else WireItem(a, b)
+
+
 class ConnectTerminalToWireCommand(QUndoCommand):
     """A component's terminal has landed exactly on an existing wire's line
     (not on either of its endpoints, which would instead go through
@@ -125,24 +137,24 @@ class ConnectTerminalToWireCommand(QUndoCommand):
         super().__init__("Connect to wire")
         self.main_window = main_window
         self.old_wire = wire
-        self.wire_a = WireItem(wire.start_terminal, terminal)
-        self.wire_b = WireItem(terminal, wire.end_terminal)
+        self.wire_a = _wire_unless_duplicate(wire.start_terminal, terminal)
+        self.wire_b = _wire_unless_duplicate(terminal, wire.end_terminal)
 
     def redo(self) -> None:
         scene = self.main_window.scene
         self.old_wire.detach()
         scene.removeItem(self.old_wire)
-        self.wire_a.attach()
-        scene.addItem(self.wire_a)
-        self.wire_b.attach()
-        scene.addItem(self.wire_b)
+        for wire in (self.wire_a, self.wire_b):
+            if wire is not None:
+                wire.attach()
+                scene.addItem(wire)
 
     def undo(self) -> None:
         scene = self.main_window.scene
-        self.wire_a.detach()
-        scene.removeItem(self.wire_a)
-        self.wire_b.detach()
-        scene.removeItem(self.wire_b)
+        for wire in (self.wire_a, self.wire_b):
+            if wire is not None:
+                wire.detach()
+                scene.removeItem(wire)
         self.old_wire.attach()
         scene.addItem(self.old_wire)
 
@@ -163,24 +175,24 @@ class SpliceComponentIntoWireCommand(QUndoCommand):
         super().__init__("Insert component into wire")
         self.main_window = main_window
         self.old_wire = wire
-        self.wire_a = WireItem(wire.start_terminal, near_terminal)
-        self.wire_b = WireItem(far_terminal, wire.end_terminal)
+        self.wire_a = _wire_unless_duplicate(wire.start_terminal, near_terminal)
+        self.wire_b = _wire_unless_duplicate(far_terminal, wire.end_terminal)
 
     def redo(self) -> None:
         scene = self.main_window.scene
         self.old_wire.detach()
         scene.removeItem(self.old_wire)
-        self.wire_a.attach()
-        scene.addItem(self.wire_a)
-        self.wire_b.attach()
-        scene.addItem(self.wire_b)
+        for wire in (self.wire_a, self.wire_b):
+            if wire is not None:
+                wire.attach()
+                scene.addItem(wire)
 
     def undo(self) -> None:
         scene = self.main_window.scene
-        self.wire_a.detach()
-        scene.removeItem(self.wire_a)
-        self.wire_b.detach()
-        scene.removeItem(self.wire_b)
+        for wire in (self.wire_a, self.wire_b):
+            if wire is not None:
+                wire.detach()
+                scene.removeItem(wire)
         self.old_wire.attach()
         scene.addItem(self.old_wire)
 

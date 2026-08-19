@@ -201,4 +201,35 @@ tap_wires = [w for w in wires_in_scene() if tap_node.terminals[0] in (w.start_te
 assert len(tap_wires) == 3, f"expected 3 wires through the tap Node (a<->tap, tap<->b, tap<->free_node), got {len(tap_wires)}"
 print("6. dragging a wire from a Node's terminal onto a wire taps in via a new Node (Node itself doesn't move): OK")
 
+# --- 7. A Node that ALREADY has its own separate wire straight to one of
+# the tapped wire's endpoints must not end up with a duplicate wire to that
+# same endpoint - the tap should recognize the connection already exists and
+# only add the other (genuinely new) segment. -------------------------------
+p = window.add_component("resistor", QPointF(400, 1000))    # terminals at (360,1000) and (440,1000)
+q = window.add_component("resistor", QPointF(580, 1000))    # terminals at (540,1000) and (620,1000)
+wire_pq = WireItem(p.terminals[0], q.terminals[0])
+wire_pq.attach()
+window.scene.addItem(wire_pq)
+
+already_wired_node = window.add_component("junction", QPointF(700, 1100))
+pre_existing_wire = WireItem(already_wired_node.terminals[0], p.terminals[0])
+pre_existing_wire.attach()
+window.scene.addItem(pre_existing_wire)
+app.processEvents()
+
+wires_before_tap = len(wires_in_scene())
+# (460, 1000) sits mid-span on wire_pq (360 to 540) - clear of p's OTHER
+# terminal at (440,1000), which would otherwise land exactly on a terminal
+# and merge instead of tap.
+shift_drag(already_wired_node.terminals[0].scenePos(), QPointF(460, 1000))
+
+assert wire_pq not in window.scene.items(), "the tapped wire should still have been split"
+assert pre_existing_wire in window.scene.items(), "the node's pre-existing wire to p should be left alone, not duplicated"
+node_wires = [w for w in wires_in_scene() if already_wired_node.terminals[0] in (w.start_terminal, w.end_terminal)]
+assert len(node_wires) == 2, f"expected exactly 2 wires on the node (the untouched pre-existing one, plus one new tap segment to q) - got {len(node_wires)}"
+pairs = {frozenset({w.start_terminal, w.end_terminal}) for w in wires_in_scene()}
+assert len(pairs) == len(wires_in_scene()), "no two wires should connect the exact same pair of terminals"
+assert frozenset({already_wired_node.terminals[0], q.terminals[0]}) in pairs, "the node should be newly wired to q on the far side"
+print("7. tapping a wire when already directly wired to one of its endpoints doesn't create a duplicate wire: OK")
+
 print("ALL WIRE-TAP TESTS PASSED")
