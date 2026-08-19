@@ -11,6 +11,28 @@ pip install -r requirements.txt
 python main.py
 ```
 
+## Screenshots
+
+A few components wired up on the canvas:
+
+![Canvas overview](screenshots/01_canvas_overview.png)
+
+Simulate running - live voltage at every terminal, refreshing as you edit:
+
+![Simulate running](screenshots/02_simulate_live.png)
+
+An inductor's kickback: open the switch after current's built up in it and the whole network swings negative for a moment:
+
+![Inductor kickback going negative](screenshots/03_inductor_kickback.png)
+
+Frequency Response on a high-pass filter, magnitude rolling off toward the low end:
+
+![Frequency response, magnitude tab, high-pass filter](screenshots/04_frequency_response_highpass_magnitude.png)
+
+...and its phase, one click away on the Phase tab:
+
+![Frequency response, phase tab, high-pass filter](screenshots/05_frequency_response_highpass_phase.png)
+
 ## Features
 
 - **Components** - resistor, battery, capacitor, inductor, bulb, switch, and a bare Node for junctions. Place one with its shortcut key (`R` `B` `C` `I` `L` `S` `N`) or by clicking it in the sidebar - both drop you into a placement mode where a ghost follows the cursor, `R` rotates it, click to drop, `Esc` cancels. Dragging from the sidebar instead works too, it just can't be rotated mid-drag. Switches start open and toggle with a click; bulbs glow live under Simulate.
