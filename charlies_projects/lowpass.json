@@ -1,0 +1,111 @@
+{
+  "components": [
+    {
+      "id": "82f45697515e4c7bbaa3257d6a1a84f6",
+      "type": "resistor",
+      "x": -60.0,
+      "y": -120.0,
+      "rotation": 0.0,
+      "value": 1000.0,
+      "label": "R2",
+      "closed": true
+    },
+    {
+      "id": "1d0d5992e2aa43328acc5928913362f7",
+      "type": "capacitor",
+      "x": 40.0,
+      "y": 0.0,
+      "rotation": 90.0,
+      "value": 0.01,
+      "label": "C2",
+      "closed": true
+    },
+    {
+      "id": "232c022c1061440984de1fd72ab94fe8",
+      "type": "junction",
+      "x": -260.0,
+      "y": 40.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J2",
+      "closed": true
+    },
+    {
+      "id": "a5795c38ff064384b73617364f7a2919",
+      "type": "junction",
+      "x": 40.0,
+      "y": -120.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J1",
+      "closed": true
+    },
+    {
+      "id": "8d11519f9f9c45749a4cb9ed8dd12a7c",
+      "type": "battery",
+      "x": -220.0,
+      "y": -120.0,
+      "rotation": 180.0,
+      "value": 9.0,
+      "label": "V1",
+      "closed": true
+    }
+  ],
+  "wires": [
+    {
+      "id": "255377829f2a44e79f9d8433ddfd9b8e",
+      "start": {
+        "component_id": "82f45697515e4c7bbaa3257d6a1a84f6",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "a5795c38ff064384b73617364f7a2919",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "8077c1c74e7d4039be930509c3752097",
+      "start": {
+        "component_id": "8d11519f9f9c45749a4cb9ed8dd12a7c",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "82f45697515e4c7bbaa3257d6a1a84f6",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "5088486857e34555a24f4a304753121d",
+      "start": {
+        "component_id": "1d0d5992e2aa43328acc5928913362f7",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "a5795c38ff064384b73617364f7a2919",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "238be382183e42c6950a635a378ca42c",
+      "start": {
+        "component_id": "232c022c1061440984de1fd72ab94fe8",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "1d0d5992e2aa43328acc5928913362f7",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "7170e0c673ef40a98efe3fef9149877c",
+      "start": {
+        "component_id": "8d11519f9f9c45749a4cb9ed8dd12a7c",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "232c022c1061440984de1fd72ab94fe8",
+        "terminal_index": 0
+      }
+    }
+  ]
+}

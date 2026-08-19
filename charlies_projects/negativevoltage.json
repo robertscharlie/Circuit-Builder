@@ -1,0 +1,165 @@
+{
+  "components": [
+    {
+      "id": "90175c2722a74daea835c1722a5b2291",
+      "type": "inductor",
+      "x": -180.0,
+      "y": 160.0,
+      "rotation": 0.0,
+      "value": 20.0,
+      "label": "L1",
+      "closed": true
+    },
+    {
+      "id": "e71378f7724c4fd98ab0fc4615eb1107",
+      "type": "lamp",
+      "x": -180.0,
+      "y": 80.0,
+      "rotation": 0.0,
+      "value": 50.0,
+      "label": "LP1",
+      "closed": true
+    },
+    {
+      "id": "e9fa81173f414d91b119d50521ac04f5",
+      "type": "switch",
+      "x": -240.0,
+      "y": -120.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "SW1",
+      "closed": true
+    },
+    {
+      "id": "11a0e9ccc7984e27ae984876a2cf1eb2",
+      "type": "capacitor",
+      "x": -180.0,
+      "y": -180.0,
+      "rotation": 0.0,
+      "value": 0.1,
+      "label": "C1",
+      "closed": true
+    },
+    {
+      "id": "728c9ade664f422a96c469285dd59c34",
+      "type": "battery",
+      "x": -120.0,
+      "y": -120.0,
+      "rotation": 0.0,
+      "value": 9.0,
+      "label": "V1",
+      "closed": true
+    },
+    {
+      "id": "6a799c44feaf42279b87e34033a666e6",
+      "type": "resistor",
+      "x": -180.0,
+      "y": -20.0,
+      "rotation": 0.0,
+      "value": 1000.0,
+      "label": "R1",
+      "closed": true
+    }
+  ],
+  "wires": [
+    {
+      "id": "6b415cc28f084d6bb9cf5876bec39746",
+      "start": {
+        "component_id": "90175c2722a74daea835c1722a5b2291",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "e71378f7724c4fd98ab0fc4615eb1107",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "621f2d8619554a35bdb8003df9f24eef",
+      "start": {
+        "component_id": "90175c2722a74daea835c1722a5b2291",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "e71378f7724c4fd98ab0fc4615eb1107",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "ad02da5c40ce4e34893b762e3ed8c289",
+      "start": {
+        "component_id": "e71378f7724c4fd98ab0fc4615eb1107",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "6a799c44feaf42279b87e34033a666e6",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "a75caafd990f4e44a3ac80a0dfbb9f1d",
+      "start": {
+        "component_id": "e71378f7724c4fd98ab0fc4615eb1107",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "6a799c44feaf42279b87e34033a666e6",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "907197ca701546f78f5b419c89a917b5",
+      "start": {
+        "component_id": "e9fa81173f414d91b119d50521ac04f5",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "6a799c44feaf42279b87e34033a666e6",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "d28326748a4e46e8aa65e6ae6638bf8e",
+      "start": {
+        "component_id": "728c9ade664f422a96c469285dd59c34",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "6a799c44feaf42279b87e34033a666e6",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "038726edd9184e8e85e71e6f4f60a212",
+      "start": {
+        "component_id": "11a0e9ccc7984e27ae984876a2cf1eb2",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "728c9ade664f422a96c469285dd59c34",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "f55c18cf87b04358a86c42d2e8452215",
+      "start": {
+        "component_id": "11a0e9ccc7984e27ae984876a2cf1eb2",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "e9fa81173f414d91b119d50521ac04f5",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "a525bf4a33fc4e9ab39364a89e6d6103",
+      "start": {
+        "component_id": "e9fa81173f414d91b119d50521ac04f5",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "728c9ade664f422a96c469285dd59c34",
+        "terminal_index": 0
+      }
+    }
+  ]
+}
