@@ -66,8 +66,10 @@ class MainWindow(QMainWindow):
         self.view.wire_tap_requested.connect(self._on_wire_tap_requested)
         self.view.frequency_response_requested.connect(self._on_frequency_response_requested)
 
+        palette = ComponentPalette(self)
+        palette.component_picked.connect(self.view.start_placement)
         palette_dock = QDockWidget("Components", self)
-        palette_dock.setWidget(ComponentPalette(self))
+        palette_dock.setWidget(palette)
         palette_dock.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable | QDockWidget.DockWidgetFeature.DockWidgetFloatable)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, palette_dock)
 

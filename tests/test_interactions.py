@@ -9,6 +9,7 @@ from PySide6.QtTest import QTest
 
 from circuit_builder.ui.main_window import MainWindow
 from circuit_builder.ui.component_item import ComponentItem
+from circuit_builder.ui.palette import ComponentPalette
 
 app = QApplication(sys.argv)
 window = MainWindow()
@@ -118,5 +119,46 @@ view.scene().clearSelection()
 drag(r1.scenePos(), r1.scenePos())  # simple click on the resistor body
 assert r1.isSelected(), "left-click should select a component again once the Pan Tool is off"
 print("8. Pan Tool: disabling it restores normal click/drag behavior: OK")
+
+# --- 9. Clicking a palette item (not just its keyboard shortcut) also
+# enters placement mode - a ghost that follows the cursor and can be
+# rotated before it's placed. This is the more reliable way to rotate
+# before placing: a native drag-and-drop (dragging the item instead)
+# doesn't dependably deliver key presses to rotate mid-drag. ---------------
+
+palette = window.findChild(ComponentPalette)
+capacitor_item = next(palette.item(i) for i in range(palette.count()) if palette.item(i).data(Qt.ItemDataRole.UserRole) == "capacitor")
+item_rect = palette.visualItemRect(capacitor_item)
+QTest.mouseClick(palette.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, item_rect.center())
+app.processEvents()
+assert view._pending_place_type == "capacitor", "clicking a palette item should enter placement mode for that type"
+
+QTest.keyClick(view, Qt.Key.Key_R)
+app.processEvents()
+assert view._pending_place_rotation == 90.0, "R should rotate the ghost before placing, same as a keyboard-triggered placement"
+
+click_vp2 = view.mapFromScene(QPointF(400, 400))
+QTest.mouseClick(vp, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, click_vp2)
+app.processEvents()
+placed_capacitors = [i for i in window.scene.items() if isinstance(i, ComponentItem) and i.component_type == "capacitor"]
+assert len(placed_capacitors) == 1
+assert placed_capacitors[0].rotation() == 90.0, "the rotation picked before placing should carry over to the placed component"
+print("9. clicking a palette item enters the same rotate-before-place mode its keyboard shortcut does: OK")
+
+# --- 10. Clicking a second palette item while already placing swaps to the
+# new type (and resets rotation) instead of getting stuck or stacking. -----
+
+resistor_item = next(palette.item(i) for i in range(palette.count()) if palette.item(i).data(Qt.ItemDataRole.UserRole) == "resistor")
+view.start_placement("capacitor")
+QTest.keyClick(view, Qt.Key.Key_R)
+app.processEvents()
+assert view._pending_place_rotation == 90.0
+
+QTest.mouseClick(palette.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, palette.visualItemRect(resistor_item).center())
+app.processEvents()
+assert view._pending_place_type == "resistor", "clicking a different palette item mid-placement should swap to it"
+assert view._pending_place_rotation == 0.0, "swapping to a new type should reset the pending rotation"
+view.cancel_placement()
+print("10. clicking a different palette item while already placing swaps type and resets rotation: OK")
 
 print("ALL INTERACTION TESTS PASSED")

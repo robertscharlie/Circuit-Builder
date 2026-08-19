@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QByteArray, QMimeData, QPoint, Qt
+from PySide6.QtCore import QByteArray, QMimeData, QPoint, Qt, Signal
 from PySide6.QtGui import QDrag
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -20,12 +20,20 @@ ICON_SWATCH_PADDING = 10
 
 
 class ComponentPalette(QListWidget):
-    """Sidebar list of component types the user can drag onto the canvas."""
+    """Sidebar list of component types the user can drag onto the canvas,
+    or click to enter the same placement mode a keyboard shortcut does - a
+    ghost symbol follows the cursor (R rotates it, Esc cancels) until the
+    next click places it. Clicking is the more reliable way to rotate
+    before placing: a native drag-and-drop (below) doesn't dependably
+    deliver key presses to rotate mid-drag on every platform."""
+
+    component_picked = Signal(str)  # component type key
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setDragEnabled(True)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.itemClicked.connect(self._on_item_clicked)
 
         for key, meta in COMPONENT_TYPES.items():
             item = QListWidgetItem()
@@ -84,3 +92,10 @@ class ComponentPalette(QListWidget):
         drag.setPixmap(pixmap)
         drag.setHotSpot(QPoint(pixmap.width() // 2, pixmap.height() // 2))
         drag.exec(Qt.DropAction.CopyAction)
+
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
+        # itemClicked only fires for a genuine click (press+release with no
+        # significant movement) - a real drag that started via startDrag()
+        # above never reaches this, so the two don't fight each other.
+        comp_type = item.data(Qt.ItemDataRole.UserRole)
+        self.component_picked.emit(comp_type)
