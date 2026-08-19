@@ -11,9 +11,9 @@ from circuit_builder.core.simulation import simulate
 from circuit_builder.ui.component_item import ComponentItem
 from circuit_builder.ui.main_window import MainWindow
 
-# --- core solver: no Qt involved, works straight off the example files -----
+# --- core solver: no Qt involved, works straight off the example_files -----
 
-EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example files")
+EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example_files")
 
 
 def volt(result, comp_id, terminal):

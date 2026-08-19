@@ -1,0 +1,174 @@
+{
+  "components": [
+    {
+      "id": "395cd0d0b30e4de496576871dc3e6571",
+      "type": "junction",
+      "x": 0.0,
+      "y": -100.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J4",
+      "closed": true
+    },
+    {
+      "id": "9642fb3a19014ed6b450516f60859a82",
+      "type": "junction",
+      "x": 220.0,
+      "y": 160.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J3",
+      "closed": true
+    },
+    {
+      "id": "74c15c579f4e46d39fd7d108c52bc234",
+      "type": "junction",
+      "x": 240.0,
+      "y": -80.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J2",
+      "closed": true
+    },
+    {
+      "id": "3addab0cb3c74844bc86b067bf31fa0e",
+      "type": "junction",
+      "x": -280.0,
+      "y": -60.0,
+      "rotation": 0.0,
+      "value": 0.0,
+      "label": "J1",
+      "closed": true
+    },
+    {
+      "id": "caac550b613e4d2a9df4a5691becad8d",
+      "type": "capacitor",
+      "x": 360.0,
+      "y": 0.0,
+      "rotation": 90.0,
+      "value": 1e-06,
+      "label": "C1",
+      "closed": true
+    },
+    {
+      "id": "752074cf589447a3ac400d9be5ca10cb",
+      "type": "inductor",
+      "x": 120.0,
+      "y": -100.0,
+      "rotation": 0.0,
+      "value": 0.001,
+      "label": "L1",
+      "closed": true
+    },
+    {
+      "id": "0e2a671ef19e4744ae3dccaf9dc00cf2",
+      "type": "resistor",
+      "x": -120.0,
+      "y": -100.0,
+      "rotation": 0.0,
+      "value": 1000.0,
+      "label": "R1",
+      "closed": true
+    },
+    {
+      "id": "8eded70ffca4434a901418735b55b620",
+      "type": "battery",
+      "x": -360.0,
+      "y": 0.0,
+      "rotation": 90.0,
+      "value": 9.0,
+      "label": "V1",
+      "closed": true
+    }
+  ],
+  "wires": [
+    {
+      "id": "0efd263bb8934dbdadd5da197f98d343",
+      "start": {
+        "component_id": "395cd0d0b30e4de496576871dc3e6571",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "752074cf589447a3ac400d9be5ca10cb",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "82b70a65215040bbb97a065362a71a54",
+      "start": {
+        "component_id": "0e2a671ef19e4744ae3dccaf9dc00cf2",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "395cd0d0b30e4de496576871dc3e6571",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "42f3cdf19e5148e993d03ebf9738df7c",
+      "start": {
+        "component_id": "9642fb3a19014ed6b450516f60859a82",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "8eded70ffca4434a901418735b55b620",
+        "terminal_index": 1
+      }
+    },
+    {
+      "id": "4f5a0b2840a04b6ebcd029d2dee7d57a",
+      "start": {
+        "component_id": "caac550b613e4d2a9df4a5691becad8d",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "9642fb3a19014ed6b450516f60859a82",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "833f2e7e9d094343a8413d627e1f9c67",
+      "start": {
+        "component_id": "74c15c579f4e46d39fd7d108c52bc234",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "caac550b613e4d2a9df4a5691becad8d",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "e5c6c58232fb464f85e352414a56dc60",
+      "start": {
+        "component_id": "752074cf589447a3ac400d9be5ca10cb",
+        "terminal_index": 1
+      },
+      "end": {
+        "component_id": "74c15c579f4e46d39fd7d108c52bc234",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "b04ba22548054925a29b16405d970f6a",
+      "start": {
+        "component_id": "3addab0cb3c74844bc86b067bf31fa0e",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "0e2a671ef19e4744ae3dccaf9dc00cf2",
+        "terminal_index": 0
+      }
+    },
+    {
+      "id": "97dd9c966dd94fbb8fe127956f9d17cd",
+      "start": {
+        "component_id": "8eded70ffca4434a901418735b55b620",
+        "terminal_index": 0
+      },
+      "end": {
+        "component_id": "3addab0cb3c74844bc86b067bf31fa0e",
+        "terminal_index": 0
+      }
+    }
+  ]
+}
